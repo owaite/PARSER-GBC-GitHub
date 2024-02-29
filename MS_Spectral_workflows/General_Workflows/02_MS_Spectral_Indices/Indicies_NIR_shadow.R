@@ -8,78 +8,49 @@ library(tidyverse)
 library(sf)
 library(exactextractr)
 
-## Ran on 2024-02-02 for Canoe
+## -(1)- LOAD CROWN SHP AND BUFFER -###############################################################################
+dir_crowns <- "D:\\Sync\\Sync\\Fdc_PR_Canoe\\Crowns.shp" #path to crowns shapefile
+# dir_crowns <- "T:\\OliviaW\\BackUp_Canoe_Crowns\\CROWNS_done_reviewed_missing_added - Copy - sam segmentation on these\\Data\\CROWNS\\Edited\\Edited_added\\CHM_.06_masked_RGB_H20T_mosaic_thres45percent_2022_06_07_NAfilledminw3_medw3_gauss.sig.01w3_z75_crowns_EDITED_NEWmissAdded.shp"
 
-site = "Fdc_PR_Canoe" #"Cw_PR_Rainbow_SiteA"
-#dir_crowns <- "D:\\Sync\\Sync\\Fdc_PR_Canoe\\CROWNS_done_reviewed_missing_added\\Data\\CROWNS\\Edited\\CHM_.06_masked_RGB_H20T_mosaic_thres45percent_2022_06_07_NAfilledminw3_medw3_gauss.sig.01w3_z75_crowns_EDITED.shp"  #"K:\\Rainbow_A_Crowns\\Edited_as_of_2023_09_22_notDone\\Edited_CHM_.06_masked_RGB_H20T_thres45percent_2022_06_07_NAfilledminw3_medw3_gauss.sig.01w3_z75_crowns_2_AbsIncluded.shp"  #pols_spat = st_read(paste0("K:\\Rainbow_B_Crowns\\Data\\Crowns\\Edited_Spencer\\CHM_.06_masked_RGB_H20T_thres45percent_2022_06_07_NAfilledminw3_medw3_gauss.sig.01w3_z75_crowns_2_EDITED.shp")) %>%
-dir_crowns <- "T:\\OliviaW\\BackUp_Canoe_Crowns\\CROWNS_done_reviewed_missing_added - Copy - sam segmentation on these\\Data\\CROWNS\\Edited\\Edited_added\\CHM_.06_masked_RGB_H20T_mosaic_thres45percent_2022_06_07_NAfilledminw3_medw3_gauss.sig.01w3_z75_crowns_EDITED_NEWmissAdded.shp"
 # reading in crown polygons
 pols_read = st_read(paste0(dir_crowns), crs = 26910) %>% 
   filter(!st_is_empty(.)) 
-#calculating area and adding a buffer
+
+#calculating area of crowns and adding a buffer
 pols_buf <- pols_read %>%
   mutate(Area = st_area(pols_read)) %>%
   st_buffer(dist = -.05)
-  #vect()
+#vect()
+
 #calculating area of buffered crown
 pols_spat <- pols_buf %>%
   mutate(Area_buffer5cm = st_area(pols_buf))
 
+#checking the crowns
 colnames(pols_spat)
+# plot(pols_spat)
+# class(pols_spat)
 
-plot(pols_spat)
-class(pols_spat)
+## -(2)- Masking multispectral orthos and calculating indices #######################################################
 
-# c_or_m <- "_polyMask" ## getting nir from folder that used mask function for the crowns and not crop
-# Nir_shadow_folder_baseName <- "NIR_shadow_mask"
-# 
-# Nir_shadow_folder <- paste0(Nir_shadow_folder_baseName, c_or_m)
 
-Nir_shadow_folder <- "NIR_shadow_mask_localMinOrMax_polyCrop"
+site = "Fdc_PR_Canoe" #Site name
+Nir_shadow_folder <- "NIR_shadow_mask_localMinOrMax" #name of the folder shadow masks are in (this folder should already exist with masks in it)
+updated_metrics_folder <- "CSV_Index_NIR_Shadow_updated" #name of the folder that rds of indices will be written out to, does not need to exist yet, will be created in the loop below 
 
+#list of dates of flight aquisitions
 date_list <- c( "2022_04_23",
-                 "2022_05_08",
-                 "2022_05_27",
-                 "2022_06_08",
-                 "2022_06_23",# here and above have mean and median for
-                "2022_07_06",
-                "2022_07_22",
-                "2022_07_27",
-                "2022_08_05",
-                "2022_08_24",
-                "2022_09_08",
-                "2022_09_20",
-                "2022_10_05",
-                "2022_10_20",
-                 "2022_11_28",
-                 "2023_02_17",
-                 "2023_03_22",
                 "2023_04_05",
-                 "2023_04_26",
-                "2023_05_10",
-                "2023_05_24",
-                "2023_06_07",
-                "2023_06_21",
-                "2023_08_17"
-            )
-                
-date_list              
+                "2022_05_08")
+date_list
 
-# date_list <- ("2022_05_08")
-
-# pols_spat = st_read(paste0(dir_crowns)) %>% 
-#   filter(!st_is_empty(.)) %>%
-#   mutate(Area = st_area()) %>%
-#   st_buffer(dist = -.05)%>%
-#   mutate(Area_buffer5cm = st_area())
-
-pols <- pols_spat
-
-updated_metrics_folder <- "CSV_Index_NIR_Shadow_updated"
+pols <- pols_spat 
 
 for (x in 1:length(date_list)){
   print(date_list[x])
   
+  #choosing a directory based on the site
+  #directory locations are the paths to the folder that contains the Nir_shadow_folder and willcontain the updated_metrics_folder
   if (site %in% c("Cw_PR_Rainbow_SiteA", "Cw_PR_Rainbow_SiteB")){
     dir = paste0("K:\\",site,"\\Flights\\", date_list[x], "\\2_Inputs\\")
     dir_D = paste0("K:\\",site,"\\Flights\\", date_list[x])
@@ -91,27 +62,33 @@ for (x in 1:length(date_list)){
   
   print(dir)
   #ms_ortho
-  ms_ortho = rast(list.files(paste0(dir, "metashape\\3_MS_ORTHO\\"), pattern = ".*MS_Calibrated.*_bestPanel.tif$", full.names = TRUE))
+  ms_ortho = rast(list.files(paste0(dir, "metashape\\3_MS_ORTHO\\"), pattern = ".*MS_Calibrated.*_bestPanel.tif$", full.names = TRUE))#path to multispectral ortho
   ms_ortho_name = names(ms_ortho)[1]
-  ms_ortho_name_root <- substr(ms_ortho_name, 1, nchar(ms_ortho_name) - 2)
-
+  ms_ortho_name_root <- substr(ms_ortho_name, 1, nchar(ms_ortho_name) - 2)#getting the root name of the multispectral ortho
   # ratio = ratios[x,]
-  #nir shadow mask
+  
+  #reading in the NIR shadow mask
   shadow_mask = rast(list.files(paste0(dir, Nir_shadow_folder,"\\"),  pattern = ".*_NIR_shadow.*_thresh.*_mask2.tif$", full.names = TRUE))## NIr shadow mask, uing the mask from the NIr of the crowns only (ie mask NOT crop)
   
   #mask NIR shadow to pols:
   shadow_mask <- terra::mask(shadow_mask, pols)
   
-  #masking ms ortho by shadow mask
+  #masking multispectral ortho by shadow mask
   ms_mask <- terra::mask(ms_ortho, shadow_mask, maskvalues = 1, updatevalue = NA)
+  #writing out the shadow masked multispectral ortho
   terra::writeRaster(ms_mask, paste0(dir, Nir_shadow_folder,"\\",ms_ortho_name_root,"_NirShadow_masked.tif"),
                      overwrite = TRUE)
   # ms_mask <- rast(paste0(dir, Nir_shadow_folder,"\\",ms_ortho_name_root,"_NirShadow_masked.tif"))
-  ## mask raster to pols
+  
+  ## mask shadow masked raster to pols
   ms_mask <- terra::mask(ms_mask, pols)
+  #write out the masked raster
   terra::writeRaster(ms_mask, paste0(dir, Nir_shadow_folder,"\\",ms_ortho_name_root,"_NirShadow_ms_mask_to_pols.tif"),
                      overwrite = TRUE)
+  #read in the masked ms raster
   ms_mask <- rast(paste0(dir, Nir_shadow_folder,"\\",ms_ortho_name_root,"_NirShadow_ms_mask_to_pols.tif"))
+  
+  #list of reflectance and index values that will be calculated per tree crown
   rast_list = list(# reflectance values
     R444 = ms_mask[[1]],
     R475 = ms_mask[[2]],
@@ -156,48 +133,54 @@ for (x in 1:length(date_list)){
   
   rast_all = rast(rast_list)
   
-  # # Mean Indices
-  # print("calculating mean indices")
-  # df_spectral_mean = exact_extract(rast_all, pols, fun = "mean", append_cols = c("treeID","Edited","tag__","rep","blk","fam","fem"))
-  # print("calculating cell count")
+  #Creating the folder that the rds will be written out to 
+  if(!dir.exists(paste0(dir_D,"\\",updated_metrics_folder,"\\"))){ 
+    dir.create(paste0(dir_D,"\\",updated_metrics_folder,"\\"))}
+  
+  # Calculating Mean Index values per crown
+  print("calculating mean indices")
+  df_spectral_mean = exact_extract(rast_all, pols, fun = "mean", append_cols = c("treeID","Edited","tag__","rep","blk","fam","fem"))
+  print("calculating cell count")
+  # Calculating the number of non-masked pixels used for index calculation
   df_count = exact_extract(ms_mask[[1]], pols, fun = "count", progress = TRUE, append_cols = c("treeID","Edited","tag__","rep","blk","fam","fem"))
-  # 
-  # df_spectral_mean_count <- merge(df_spectral_mean,df_count, by = c("treeID","Edited","tag__","rep","blk","fam","fem"))
-  #                                
-  # if(!dir.exists(paste0(dir_D,"\\",updated_metrics_folder,"\\"))){ #creating CSV folders
-  #   dir.create(paste0(dir_D,"\\",updated_metrics_folder,"\\"))}
-  # print("calculated indices")
-  # saveRDS(df_spectral_mean_count, paste0(dir_D,"\\",updated_metrics_folder,"\\", date_list[x], "_NIRshadowMask_MeanCrownSpectralIndices.rds"))
-  # 
-  #Median Indices
+  # Joining the mean index values df and the count values df
+  df_spectral_mean_count <- merge(df_spectral_mean,df_count, by = c("treeID","Edited","tag__","rep","blk","fam","fem"))
+
+ 
+  print("calculated mean indices")
+  saveRDS(df_spectral_mean_count, paste0(dir_D,"\\",updated_metrics_folder,"\\", date_list[x], "_NIRshadowMask_MeanCrownSpectralIndices.rds"))
+
+  # Calculating Median Index values per crown
   print("calculating median indices")
   df_spectral_median = exact_extract(rast_all, pols, fun = "median", append_cols = c("treeID","Edited","tag__","rep","blk","fam","fem"))
   df_spectral_median_count <- merge(df_spectral_median,df_count, by = c("treeID","Edited","tag__","rep","blk","fam","fem"))
-
-  if(!dir.exists(paste0(dir_D,"\\",updated_metrics_folder,"\\"))){ #creating CSV folders
-    dir.create(paste0(dir_D,"\\",updated_metrics_folder,"\\"))}
-  print("calculated indices")
+  
+  print("calculated median indices")
   saveRDS(df_spectral_median_count, paste0(dir_D,"\\",updated_metrics_folder,"\\", date_list[x], "_NIRshadowMask_MedianCrownSpectralIndices.rds"))
 
 }
 
 
-### adding them all to one, for median first:
+## Now we have .rds files for mean and medium values per crown, however each file is more one data aquisition
+# below adds multiple data aquisitions into one large .rds file
 
 for (i in 1:length(date_list)){
   print(date_list[i])
 
+  #read in .rds file with index values per crown
   file <- readRDS(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_list[i],"\\",updated_metrics_folder,"\\", date_list[i], "_NIRshadowMask_MeanCrownSpectralIndices.rds"))%>%
     as.data.frame()%>%
-    mutate(Date = ymd(date_list[i]))
+    mutate(Date = ymd(date_list[i]))#Making a column named Date that is a lubridate date object in the format of year-month-day
   
   if(i ==1){
     df_to_join <- as.data.frame(file)
   }else{
-    df_to_join <- rbind(df_to_join,file)
+    df_to_join <- rbind(df_to_join,file) #joining .rds files together, one date at a time as it goes through the for loop
   }
 }
 
+#saving out the joined df
 saveRDS(df_to_join, paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\AllDates_NIRshadowMask_MeanCrownSpectralIndices.rds"))
 
+#checking that all required data aquisitions are present
 unique(df_to_join$Date)
