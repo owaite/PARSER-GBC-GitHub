@@ -289,10 +289,14 @@ for (i in 1:length(date_list)){
 future:::ClusterRegistry("stop")
 plan(multisession, workers = 2L)
 
+#getting a list of the laz file names in the 10_CROWNS_clean folder
+las_files <- list.files(paste0("E:\\Canoe\\L1_metrics\\",date,"\\10_CROWNS_clean"), pattern = "\\.laz$", full.names = TRUE)
+
 ## the tag number is written into the file names but not into the las df, below will extract the tag names from the 
 ## file names and make a tag variable in the las file:
 
-# Function to extract tag value from file name
+# the extract_tag function was built to extract the tag value from the file name where the file name is in this fomat:
+#
 extract_tag <- function(file_path) {
   # Extract the file name without extension
   file_name <- tools::file_path_sans_ext(file_path)
@@ -323,272 +327,125 @@ error_tags <- c()#initiate this empty vector
 num =0 #initiating an iterator that helps show progress in below for loop
 
 # For loop to process metrics for each LAS file and add a "tag" column
-for (las_file in las_files) {
+# This loop processes each tree seperately and writes out rds files per tree
+# this was done to make it easy to rerun if a tree threw an error and stopped the loop, without having to rerun already calculated metrics for non-problem trees
+for (las_file in las_files){
   num = num + 1
-  print(paste0(date,", percent done: ", num*100/length(las_files)))
-  las <- readLAS(las_file)
-  # Extract tag value from the file name
-  tag_value <- extract_tag(las_file)
+  print(paste0(date,", percent done: ", num*100/length(las_files)))#prints progress
+  las <- readLAS(las_file)#read in the .laz file for an individual crown
+  tag_value <- extract_tag(las_file)# extract tag value from the file name
   print(tag_value)
   
-  dir <- paste0("E:\\Canoe\\L1_metrics\\",date)
-  metrics_path <- paste0(dir,"\\10_CROWNS_clean\\Structural_metrics\\",name,"_", date,"_structuralMetrics_tag",tag_value,".rds") #USED PERT= TRUE : https://cran.r-project.org/web/packages/alphashape3d/alphashape3d.pdf
+  dir <- paste0("E:\\Canoe\\L1_metrics\\",date) #directory to crowns folder
+  metrics_path <- paste0(dir,"\\10_CROWNS_clean\\Structural_metrics\\",name,"_", date,"_structuralMetrics_tag",tag_value,".rds") # location where metrics will be written to 
   
-  if(!file.exists(metrics_path) & !tag_value %in% c(error_tags)){ #making sure metrics have not already been calculated and the known error trees are removed for alter troubleshooting
-    # Read the LAS file
-    n_points = length(las@data$Z)
-    
-    if (n_points <= 15){
-      
+  if(!file.exists(metrics_path) & !tag_value %in% c(error_tags)){ #making sure metrics have not already been calculated and the known error trees are removed for later troubleshooting
+    n_points = length(las@data$Z) # Read the LAS file
+    if (n_points <= 15){#if the laz file has less than 15 points
       structural_metrics_df <- data.frame(
-        treeID = unique(las@data$treeID), #added by Olivia
-        tag = tag_value, #added by Olivia
+        treeID = unique(las@data$treeID), 
+        tag = tag_value, 
         #### Crown size
         n_points = length(las@data$Z),
+        Zq99 = as.numeric(quantile(las@data$Z, 0.990,na.rm = TRUE)),# 99th percentile
+        Zq975 = as.numeric(quantile(las@data$Z, 0.975,na.rm = TRUE)), # 97.5th percentile
+        Zq95 = as.numeric(quantile(las@data$Z, 0.95,na.rm = TRUE)), # 95th percentile
+        Zq925 = as.numeric(quantile(las@data$Z, 0.925,na.rm = TRUE)), # 92.5th percentile
+        Z_mean = mean(las@data$Z,na.rm = TRUE), # mean z value
         
-        Zq99 = as.numeric(quantile(las@data$Z, 0.990,na.rm = TRUE)),#### Crown height
-        Zq975 = as.numeric(quantile(las@data$Z, 0.975,na.rm = TRUE)),
-        Zq95 = as.numeric(quantile(las@data$Z, 0.95,na.rm = TRUE)),
-        Zq925 = as.numeric(quantile(las@data$Z, 0.925,na.rm = TRUE)),
-        Z_mean = mean(las@data$Z,na.rm = TRUE),
-        
-        
-        
+        # Not calculating any volume metrics for clouds with < 15 points
         vol_convex = NA,
         vol_concave = NA,
         vol_a05= NA,
         
-        #apex_angle = ang$fn1,
-        #apex_sd = ang$fn2,
-        
-        #### Crown complexity
+        # Crown complexity, not calculating for clouds with < 15 points
         CV_Z = NA,
         rumple = NA, #rumple: ratio of canopy outer surface area to ground surface area() as measured by the CHM and DTM
         CRR =NA
       )
     }else{
-      Z = las@data$Z
+      Z = las@data$Z # Z values of each point in the .laz cloud
       
-      chm = grid_metrics(las, func = ~max(Z,na.rm = TRUE), res = 0.05) #grid_metrics, replaced by pixel_metrics :https://github.com/r-lidar/lidR/releases
-      chm_mean = grid_metrics(las, func = ~mean(Z,na.rm = TRUE), res = 0.2)
-      chm_mean[chm_mean < (maxValue(chm_mean))] = NA 
-      chm_mean_trim = raster::trim(chm_mean)
-      
+      chm = grid_metrics(las, func = ~max(Z,na.rm = TRUE), res = 0.05) # 5cm CHM with max Z values #grid_metrics, replaced by pixel_metrics :https://github.com/r-lidar/lidR/releases
+      chm_mean = grid_metrics(las, func = ~mean(Z,na.rm = TRUE), res = 0.2) # 20cm CHM with mean Z values
+      chm_mean[chm_mean < (maxValue(chm_mean))] = NA # pixels of chm_mean that are less than the max value of chm_mean are set to NA
+      chm_mean_trim = raster::trim(chm_mean) # creating a new raster (chm_mean_raster) with teh extent of chm_mean
       #chm_mean_trim = terra::trim(chm_mean) #using terra instead of trim from raster
       
       #apex angles are a measure of concality
-      apex = clip_roi(las, extent(chm_mean_trim))@data %>% #ext instead of extent since we now have a SpatRaster from terra
-        dplyr::filter(Z == max(.$Z))
+      # Extract points from the las that fall within the extent of 'chm_mean_trim',
+      apex = clip_roi(las, extent(chm_mean_trim))@data %>% #clipping #ext instead of extent if using a SpatRaster from terra
+        dplyr::filter(Z == max(.$Z))# filter the extracted points to retain only those with Z (height) equal to the maximum height value in the dataset.
+
+      origin = c(apex$X, apex$Y, apex$Z)# Define the coordinates of the apex point extracted from the LAS data
+      a_point = c(apex$X, apex$Y, 0)# Define the coordinates of a point lying on the same XY plane as the apex but at a Z coordinate of 0
+
+      # function 'myangle3d' to calculate the 3D angle between vectors defined by three points
+      myangle3d = function(b1, b2, b3) {
+        # Use the 'angle3d' function from the 'aRchi' package to calculate the angle in 3D space
+        # between the vectors formed by points 'origin' (apex), 'a_point', and 'b1', 'b2', 'b3'
+        aRchi::angle3d(o = c(origin[1], origin[2], origin[3]),
+                       a = c(a_point[1], a_point[2], a_point[3]),
+                       b = c(b1, b2, b3))
+      }
       
-      origin = c(apex$X, apex$Y, apex$Z)
-      a_point = c(apex$X, apex$Y, 0)
-      
-      # myangle3d = function(b1, b2, b3) {
-      #   aRchi::angle3d(o = c(origin[1], origin[2], origin[3]),
-      #                  a = c(a_point[1], a_point[2], a_point[3]),
-      #                  b = c(b1, b2, b3))
-      # }
-      
-      library(dplyr) #had to add here for vars() to work
-      # ang = las@data %>%
-      #   dplyr::select(X, Y, Z) %>%
-      #   rowwise() %>% 
-      #   mutate(angle = myangle3d(b1 = X, b2 = Y, b3 = Z)) %>% 
-      #   dplyr::ungroup() %>% 
-      #   dplyr::summarise_at(vars(angle), list <- c(mean, sd), na.rm = TRUE) #vars() has been updated to across() starting with dplyr version 1.0.0
-      # 
-      # # alphashadep3d
+      library(dplyr) #needed to re read in the package in the loop here for vars() to work
+      # Extract the X, Y, and Z coordinates from the LAS data and calculate the angle for each point
+      # using the custom function 'myangle3d'. Then summarize the angle values.
+      ang = las@data %>%
+        dplyr::select(X, Y, Z) %>%
+        rowwise() %>%
+        mutate(angle = myangle3d(b1 = X, b2 = Y, b3 = Z)) %>%
+        dplyr::ungroup() %>%
+        dplyr::summarise_at(vars(angle), list <- c(mean, sd), na.rm = TRUE) #vars() has been updated to across() starting with dplyr version 1.0.0
+
+      # Extract X, Y, and Z coordinates from the LAS data and create a matrix 'a3d'
       a3d <-  cbind(las@data$X, las@data$Y, las@data$Z)
       
-      #a3d <- as.matrix(a3d)
-      a3d[,1] = a3d[,1] - mean(a3d[,1],na.rm = TRUE) #center points around 0,0,0
-      a3d[,2] = a3d[,2] - mean(a3d[,2],na.rm = TRUE) #center points around 0,0,0
-      a3d[,3] = a3d[,3] - mean(a3d[,3],na.rm = TRUE) # sams orginal code did not center the Z values, but that is the only way we found to not get an error thrown in the ashape3d function.
-      shape_convex = alphashape3d::ashape3d(x = a3d, alpha = Inf, pert = TRUE,eps = 1e-09)
-      shape_concave = alphashape3d::ashape3d(x = a3d, alpha = 1, pert = TRUE,eps = 1e-09)
-      shape_a05 = alphashape3d::ashape3d(x = a3d, alpha = 0.5, pert = TRUE,eps = 1e-09)
+      # Center the points around the origin (0,0,0) by subtracting the mean of each dimension
+      a3d[,1] = a3d[,1] - mean(a3d[,1],na.rm = TRUE) #center x values
+      a3d[,2] = a3d[,2] - mean(a3d[,2],na.rm = TRUE) #center y values
+      a3d[,3] = a3d[,3] - mean(a3d[,3],na.rm = TRUE) #center z values # sams orginal code did not center the Z values, but that is the only way we found to not get an error thrown in the ashape3d function.
+      
+      # Generate different shapes using the alphashape3d package
+      shape_convex = alphashape3d::ashape3d(x = a3d, alpha = Inf, pert = TRUE,eps = 1e-09)# Compute a convex hull using alpha = Inf (convex hull) #USED PERT= TRUE : https://cran.r-project.org/web/packages/alphashape3d/alphashape3d.pdf
+      shape_concave = alphashape3d::ashape3d(x = a3d, alpha = 1, pert = TRUE,eps = 1e-09)# Compute a concave hull using alpha = 1 (concave hull)
+      shape_a05 = alphashape3d::ashape3d(x = a3d, alpha = 0.5, pert = TRUE,eps = 1e-09)# Compute a shape for alpha = 0.5 (balanced between convex and concave)
       
       structural_metrics_df <- data.frame(
-        treeID = unique(las@data$treeID), #added by Olivia
-        tag = tag_value, #added by Olivia
-        #### Crown size
+        treeID = unique(las@data$treeID), 
+        tag = tag_value,
         n_points = length(las@data$Z),
         
-        Zq99 = as.numeric(quantile(Z, 0.990,na.rm = TRUE)),#### Crown height
-        Zq975 = as.numeric(quantile(Z, 0.975,na.rm = TRUE)),
-        Zq95 = as.numeric(quantile(Z, 0.95,na.rm = TRUE)),
-        Zq925 = as.numeric(quantile(Z, 0.925,na.rm = TRUE)),
-        Z_mean = mean(Z,na.rm = TRUE),
+        #### Crown height
+        Zq99 = as.numeric(quantile(Z, 0.990,na.rm = TRUE)),# 99th percentile
+        Zq975 = as.numeric(quantile(Z, 0.975,na.rm = TRUE)), # 97.5th percentile
+        Zq95 = as.numeric(quantile(Z, 0.95,na.rm = TRUE)),# 95th percentile
+        Zq925 = as.numeric(quantile(Z, 0.925,na.rm = TRUE)), # 92.5th percentile
+        Z_mean = mean(Z,na.rm = TRUE), #mean crown height
         
-        
-        
-        vol_convex = alphashape3d::volume_ashape3d(shape_convex), #was inf changed to "all"
-        vol_concave = alphashape3d::volume_ashape3d(shape_concave),
-        vol_a05= alphashape3d::volume_ashape3d(shape_a05),
+        ### Crown volume
+        vol_convex = alphashape3d::volume_ashape3d(shape_convex), # convex volume
+        vol_concave = alphashape3d::volume_ashape3d(shape_concave), # concave volume
+        vol_a05= alphashape3d::volume_ashape3d(shape_a05), #volume with alpha = 0.5 (balance between concave and convex)
         
         #apex_angle = ang$fn1,
         #apex_sd = ang$fn2,
         
         #### Crown complexity
-        CV_Z = sd(Z,na.rm = TRUE) / mean(Z,na.rm = TRUE),
-        rumple = lidR::rumple_index(chm), #rumple: ratio of canopy outer surface area to ground surface area() as measured by the CHM and DTM
-        CRR = (mean(Z,na.rm = TRUE) - min(Z,na.rm = TRUE)) / (max(Z,na.rm = TRUE) - min(Z,na.rm = TRUE))
+        CV_Z = sd(Z,na.rm = TRUE) / mean(Z,na.rm = TRUE),# Compute the coefficient of variation (CV) of Z values, representing the variability of heights relative to the mean height
+        rumple = lidR::rumple_index(chm), #rumple: ratio of canopy outer surface area to ground surface area as measured by the CHM and DTM
+        CRR = (mean(Z,na.rm = TRUE) - min(Z,na.rm = TRUE)) / (max(Z,na.rm = TRUE) - min(Z,na.rm = TRUE))# Compute the Canopy Rugosity Ratio (CRR), 
+        # representing the ruggedness or roughness of the canopy surface
       )
       
     }
-    
+    #Create structural metrics folder
     if (!dir.exists(paste0(dir,"\\10_CROWNS_clean\\Structural_metrics\\"))) {
       dir.create(paste0(dir,"\\10_CROWNS_clean\\Structural_metrics\\"), recursive = TRUE)
     }
-    #df_structural = structural_metrics@data
+    #writing out .rds files
     saveRDS(structural_metrics_df, paste0(dir,"\\10_CROWNS_clean\\Structural_metrics\\",name,"_", date,"_structuralMetrics_tag",tag_value,".rds")) #USED PERT= TRUE : https://cran.r-project.org/web/packages/alphashape3d/alphashape3d.pdf
-    
-  }
-  
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-for (las_file in las_files) {
-  num = num + 1
-  print(paste0("percent done: ", num*100/length(las_files)))
-  las <- readLAS(las_file)
-  # Extract tag value from the file name
-  tag_value <- extract_tag(las_file)
-  print(tag_value)
-
-  metrics_path <- paste0(drive,":\\",name,"\\",L1_folder,"\\",date,"\\10_CROWNS_clean\\Structural_metrics\\",name,"_", date,"_structuralMetrics_tag",tag_value,".rds") #USED PERT= TRUE : https://cran.r-project.org/web/packages/alphashape3d/alphashape3d.pdf
-  
-  if(!file.exists(metrics_path) & !tag_value %in% c(error_tags)){ #making sure metrics have not already been calculated and the known error trees are removed for alter troubleshooting
-    # Read the LAS file
-    n_points = length(las@data$Z)
-    
-    if (n_points <= 15){
-      
-      structural_metrics_df <- data.frame(
-        treeID = unique(las@data$treeID), #added by Olivia
-        tag = tag_value, #added by Olivia
-        #### Crown size
-        n_points = length(las@data$Z),
-        
-        Zq99 = as.numeric(quantile(las@data$Z, 0.990)),#### Crown height
-        Zq975 = as.numeric(quantile(las@data$Z, 0.975)),
-        Zq95 = as.numeric(quantile(las@data$Z, 0.95)),
-        Zq925 = as.numeric(quantile(las@data$Z, 0.925)),
-        Z_mean = mean(las@data$Z),
-        
-        
-        
-        vol_convex = NA,
-        vol_concave = NA,
-        vol_a05= NA,
-        
-        #apex_angle = ang$fn1,
-        #apex_sd = ang$fn2,
-        
-        #### Crown complexity
-        CV_Z = NA,
-        rumple = NA, #rumple: ratio of canopy outer surface area to ground surface area() as measured by the CHM and DTM
-        CRR =NA
-      )
-    }else{
-      Z = las@data$Z
-      
-      chm = grid_metrics(las, func = ~max(Z,na.rm = TRUE), res = 0.05) #grid_metrics, replaced by pixel_metrics :https://github.com/r-lidar/lidR/releases
-      chm_mean = grid_metrics(las, func = ~mean(Z,na.rm = TRUE), res = 0.2)
-      chm_mean[chm_mean < (maxValue(chm_mean))] = NA 
-      chm_mean_trim = raster::trim(chm_mean)
-      
-      #chm_mean_trim = terra::trim(chm_mean) #using terra instead of trim from raster
-      
-      #apex angles are a measure of concality
-      apex = clip_roi(las, extent(chm_mean_trim))@data %>% #ext instead of extent since we now have a SpatRaster from terra
-        dplyr::filter(Z == max(.$Z))
-      
-      origin = c(apex$X, apex$Y, apex$Z)
-      a_point = c(apex$X, apex$Y, 0)
-      
-      # myangle3d = function(b1, b2, b3) {
-      #   aRchi::angle3d(o = c(origin[1], origin[2], origin[3]),
-      #                  a = c(a_point[1], a_point[2], a_point[3]),
-      #                  b = c(b1, b2, b3))
-      # }
-      
-      library(dplyr) #had to add here for vars() to work
-      # ang = las@data %>%
-      #   dplyr::select(X, Y, Z) %>%
-      #   rowwise() %>% 
-      #   mutate(angle = myangle3d(b1 = X, b2 = Y, b3 = Z)) %>% 
-      #   dplyr::ungroup() %>% 
-      #   dplyr::summarise_at(vars(angle), list <- c(mean, sd), na.rm = TRUE) #vars() has been updated to across() starting with dplyr version 1.0.0
-      # 
-      # # alphashadep3d
-      a3d <-  cbind(las@data$X, las@data$Y, las@data$Z)
-      
-      #a3d <- as.matrix(a3d)
-      a3d[,1] = a3d[,1] - mean(a3d[,1]) #center points around 0,0,0
-      a3d[,2] = a3d[,2] - mean(a3d[,2]) #center points around 0,0,0
-      a3d[,3] = a3d[,3] - mean(a3d[,3]) # sams orginal code did not center the Z values, but that is the only way we found to not get an error thrown in the ashape3d function.
-      shape_convex = alphashape3d::ashape3d(x = a3d, alpha = Inf, pert = TRUE,eps = 1e-09)
-      shape_concave = alphashape3d::ashape3d(x = a3d, alpha = 1, pert = TRUE,eps = 1e-09)
-      shape_a05 = alphashape3d::ashape3d(x = a3d, alpha = 0.5, pert = TRUE,eps = 1e-09)
-      
-      structural_metrics_df <- data.frame(
-        treeID = unique(las@data$treeID), #added by Olivia
-        tag = tag_value, #added by Olivia
-        #### Crown size
-        n_points = length(las@data$Z),
-        
-        Zq99 = as.numeric(quantile(Z, 0.990)),#### Crown height
-        Zq975 = as.numeric(quantile(Z, 0.975)),
-        Zq95 = as.numeric(quantile(Z, 0.95)),
-        Zq925 = as.numeric(quantile(Z, 0.925)),
-        Z_mean = mean(Z),
-        
-        
-        
-        vol_convex = alphashape3d::volume_ashape3d(shape_convex), #was inf changed to "all"
-        vol_concave = alphashape3d::volume_ashape3d(shape_concave),
-        vol_a05= alphashape3d::volume_ashape3d(shape_a05),
-        
-        #apex_angle = ang$fn1,
-        #apex_sd = ang$fn2,
-        
-        #### Crown complexity
-        CV_Z = sd(Z) / mean(Z),
-        rumple = lidR::rumple_index(chm), #rumple: ratio of canopy outer surface area to ground surface area() as measured by the CHM and DTM
-        CRR = (mean(Z) - min(Z)) / (max(Z) - min(Z))
-      )
-      
-    }
-    
-    if (!dir.exists(paste0(drive,":\\",name,"\\",L1_folder,"\\",date,"\\10_CROWNS_clean\\Structural_metrics\\"))) {
-      dir.create(paste0(drive,":\\",name,"\\",L1_folder,"\\",date,"\\10_CROWNS_clean\\Structural_metrics\\"), recursive = TRUE)
-    }
-    #df_structural = structural_metrics@data
-    saveRDS(structural_metrics_df, paste0(drive,":\\",name,"\\",L1_folder,"\\",date,"\\10_CROWNS_clean\\Structural_metrics\\",name,"_", date,"_structuralMetrics_tag",tag_value,".rds")) #USED PERT= TRUE : https://cran.r-project.org/web/packages/alphashape3d/alphashape3d.pdf
     
   }
   
