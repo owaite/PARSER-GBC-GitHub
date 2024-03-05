@@ -296,7 +296,7 @@ las_files <- list.files(paste0("E:\\Canoe\\L1_metrics\\",date,"\\10_CROWNS_clean
 ## file names and make a tag variable in the las file:
 
 # the extract_tag function was built to extract the tag value from the file name where the file name is in this fomat:
-#
+#"E:\\Canoe\\L1_metrics\\2022_11_28\\10_CROWNS_clean/Canoe_fam75_rep17_tag1642_treeID1173.laz"
 extract_tag <- function(file_path) {
   # Extract the file name without extension
   file_name <- tools::file_path_sans_ext(file_path)
