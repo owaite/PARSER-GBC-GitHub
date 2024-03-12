@@ -1,18 +1,8 @@
 REM set date_folder = 2022_04_22_v39
 REM date: 2022_11_20_v393
 REM date: 2023_06_22_v39
-REM short forms: RA: Rainbow A site, RB: Rainbow B site
 
-
-
-REM The following code:
-REM (1) reads in exported dense clouds from agisoft from the micasense, as well as the L1 points clouds and reprojects to nad 83 UTM 10N 
-REM (2) drops L1 points above a threshold hold that represents the max height tree points would be (works to remove noise)
-REM (3) Clips L1 clouds to site shapefiles to decrease the size of the point cloud for alignment in cloud compare
-REM (4) Saves clipped DAP clouds as laz files to save storage space
-
-REM site: Rainbow a (RA) & Rainbow B (RB) -----------------------------------------------------------------------------------------------
-REM projecting micasense DAP to NAD 83
+REM projecting DAP to NAD 83
 las2las -i L:\Cw_PR_Rainbow_SiteA\Flights\2022_06_07\2_Inputs\metashape\1_TILES\RGB_DenseCloud\Clipped\RGB_DenseCloud_PlotA.laz ^
 	-odir L:\Cw_PR_Rainbow_SiteA\Flights\2022_06_07\2_Inputs\metashape\1_TILES\RGB_DenseCloud\Clipped\ ^
 	-odix _nad83 ^
@@ -21,7 +11,7 @@ las2las -i L:\Cw_PR_Rainbow_SiteA\Flights\2022_06_07\2_Inputs\metashape\1_TILES\
 	-utm 10north ^
 	-cpu64 ^
 	-v
-REM projecting L1 Lidar to NAD 83
+REM projecting Lidar to NAD 83
 las2las -i O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\cloud_merged.las ^
 	-odir O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\projected_to_NAD83 ^
 	-odix _nad83 ^
@@ -30,8 +20,7 @@ las2las -i O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\cloud_merged
 	-utm 10north ^
 	-cpu64 ^
 	-v
-REM dropping points above 160m (noise points, 160m was the value for this dataset)
-REM suggestion: plot a histogram of Z values to see where the upper noise is to set this threshold should be, you might also not need to do this step if you dont have upper or lower noise
+REM dropping poitns - odd flight lines
 las2las -i O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\projected_to_NAD83\cloud_merged_nad83.laz ^
 	-odir O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\projected_to_NAD83 ^
 	-odix _droppedPtsAbove160m ^
@@ -42,7 +31,6 @@ las2las -i O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\projected_to
 
 pause
 REM clipping RA lidar to shp, used larger RA shp for 2022_11_20
-REM this step is done to decrease the storage size so that loading into cloud compare goes smoothly and the alignment process does not crash
 set RA_poly = O:\PARSER_Ext\Rainbow_L1\PlotA\Rainbow_A_shp_nad83\Larger_shp\Rainbow_PlotA_large.shp
 lasclip -i O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\projected_to_NAD83\cloud_merged_nad83_droppedPtsAbove160m.laz -merged -poly O:\PARSER_Ext\Rainbow_L1\PlotA\Rainbow_A_shp_nad83\Larger_shp\Rainbow_PlotA_large.shp -odir O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\projected_to_NAD83\PlotA\ -odix _plotA -olaz
 	
@@ -54,14 +42,14 @@ lasclip -i O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\projected_to
 
 
 REM reading in clipped DAP cloud and saving from a las to a laz for CC
-REM site: RA
+REM RA
 las2las -i L:\Cw_PR_Rainbow_SiteA\Flights\2022_06_07\2_Inputs\metashape\1_TILES\RGB_DenseCloud\Clipped\RGB_DenseCloud_PlotA.las ^
 	-odir L:\Cw_PR_Rainbow_SiteA\Flights\2022_06_07\2_Inputs\metashape\1_TILES\RGB_DenseCloud\Clipped\ ^
 	-olaz ^
 	-cpu64 ^
 	-v
 
-REM site: RB
+REM RB
 las2las -i L:\Cw_PR_Rainbow_SiteB\Flights\2022_06_07\2_Inputs\metashape\1_TILES\DenseCloud_filtered\Clipped\DenseCloud_NoNormals_NAD83_offset.las ^
 	-odir L:\Cw_PR_Rainbow_SiteB\Flights\2022_06_07\2_Inputs\metashape\1_TILES\DenseCloud_filtered\Clipped\ ^
 	-olaz ^
@@ -69,8 +57,9 @@ las2las -i L:\Cw_PR_Rainbow_SiteB\Flights\2022_06_07\2_Inputs\metashape\1_TILES\
 	-v
 
 
-REM site: CANOE -----------------------------------------------------------------------------------------------
-REM projecting Lidar to NAD 83 for 2022_04_23_v39
+
+REM CANOE
+REM projecting Lidar to NAD 83
 las2las -i O:\PARSER_Ext\Canoe_L1\2022_04_23_v39\lidars\terra_las\cloud_merged.las ^
 	-odir O:\PARSER_Ext\Canoe_L1\2022_04_23_v39\lidars\terra_las\projected_to_NAD83 ^
 	-odix _nad83 ^
@@ -80,7 +69,7 @@ las2las -i O:\PARSER_Ext\Canoe_L1\2022_04_23_v39\lidars\terra_las\cloud_merged.l
 	-cpu64 ^
 	-v
 
-REM projecting Lidar to NAD 83 for 2022_11_28_v39
+REM 2022_11_28_v39
 las2las -i O:\PARSER_Ext\Canoe_L1\2022_11_28_v39\lidars\terra_las\cloud_merged.las ^
 	-odir O:\PARSER_Ext\Canoe_L1\2022_11_28_v39\lidars\terra_las\projected_to_NAD83 ^
 	-odix _nad83 ^
@@ -90,7 +79,7 @@ las2las -i O:\PARSER_Ext\Canoe_L1\2022_11_28_v39\lidars\terra_las\cloud_merged.l
 	-cpu64 ^
 	-v
 
-REM projecting Lidar to NAD 83 for 2023_06_21_v39
+REM 2023_06_21_v39
 las2las -i O:\PARSER_Ext\Canoe_L1\2023_06_21_v39\lidars\terra_las\cloud_merged.las ^
 	-odir O:\PARSER_Ext\Canoe_L1\2023_06_21_v39\lidars\terra_las\projected_to_NAD83 ^
 	-odix _nad83 ^
