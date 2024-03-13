@@ -8,9 +8,12 @@ library(tidyverse)
 library(sf)
 library(exactextractr)
 
-## -(1)- LOAD CROWN SHP AND BUFFER -###############################################################################
+
+##############################################################################
+# (1) Read in crown .shp, add a 5cm inward buffer, and write an area attribute for both buffered and unbuffered geometries
+##############################################################################
+
 dir_crowns <- "D:\\Sync\\Sync\\Fdc_PR_Canoe\\Crowns.shp" #path to crowns shapefile
-# dir_crowns <- "T:\\OliviaW\\BackUp_Canoe_Crowns\\CROWNS_done_reviewed_missing_added - Copy - sam segmentation on these\\Data\\CROWNS\\Edited\\Edited_added\\CHM_.06_masked_RGB_H20T_mosaic_thres45percent_2022_06_07_NAfilledminw3_medw3_gauss.sig.01w3_z75_crowns_EDITED_NEWmissAdded.shp"
 
 # reading in crown polygons
 pols_read = st_read(paste0(dir_crowns), crs = 26910) %>% 
@@ -31,20 +34,25 @@ colnames(pols_spat)
 # plot(pols_spat)
 # class(pols_spat)
 
-## -(2)- Masking multispectral orthos and calculating indices #######################################################
 
+##############################################################################
+# (2) Masking multispectral orthos and calculating indices 
+##############################################################################
 
 site = "Fdc_PR_Canoe" #Site name
 Nir_shadow_folder <- "NIR_shadow_mask_localMinOrMax" #name of the folder shadow masks are in (this folder should already exist with masks in it)
 updated_metrics_folder <- "CSV_Index_NIR_Shadow_updated" #name of the folder that rds of indices will be written out to, does not need to exist yet, will be created in the loop below 
 
-#list of dates of flight aquisitions
+# Our folder structure has a "Flights" folder with sub folders within for each flight that are labelled with the acquisition
+# date in the form "YYYY_mm_dd"
+
+# List of dates of flight acquisitions that are also the names of the folders containing folders of processed multispectral data for the flight 
 date_list <- c( "2022_04_23",
                 "2023_04_05",
                 "2022_05_08")
 date_list
 
-pols <- pols_spat 
+pols <- pols_spat # setting the pols variable used in the below loop to the pols_spat created above
 
 for (x in 1:length(date_list)){
   print(date_list[x])
