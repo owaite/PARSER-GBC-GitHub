@@ -2,6 +2,7 @@ REM set date_folder = 2022_04_22_v39
 REM date: 2022_11_20_v393
 REM date: 2023_06_22_v39
 
+pause 
 REM projecting Lidar to NAD 83
 las2las -i O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\cloud_merged.las ^
 	-odir O:\PARSER_Ext\Rainbow_L1\2023_06_22_v39\lidars\terra_las\projected_to_NAD83 ^
