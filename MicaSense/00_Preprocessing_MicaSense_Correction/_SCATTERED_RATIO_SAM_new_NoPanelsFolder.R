@@ -38,140 +38,96 @@ library(magrittr)  # For the pipe operator %>%
 ################################################################################
 
 # assumes that image directories have been copied with "_save" for originals
-# assumes that panels are in a separate subdirectory called '\\PANELS'
-# assumes that masks have been exported for all panels to '\\MASKS'
+### IE you will have a "MicaSense_Cleaned" folder and a "MicaSense_Cleaned_save" folder
+### that ahve identical contents and contains the subfolders with images 
+### throughout this code the "MicaSense_Cleaned" exif data will be edited and the "MicaSense_Cleaned_save" 
+### will be an unedited backup
 
-# folder pattern: dir \\ DAP\\MS\\ flight_date_save \\ PANELS \\ panel_img.tif
-dir <- "G:\\PARSER_Ext\\Fdc_PR_Canoe\\Flights\\"#"I:\\PARSER_Ext\\Fdc_PR_Canoe\\Flights\\"
+# Assumes that panels are in a separate subdirectory called '\\PANELS'-------------------------33333333333333333333333333333333333333333333--------------------------------------------
+# Assumes that masks have been exported from agisoft metashape for all panels to '\\MASKS'
+
+# Folder pattern: dir \\DAP\\MS\\ flight_date_save \\ PANELS \\ panel_img.tif
+dir <- "G:\\PARSER_Ext\\Fdc_PR_Canoe\\Flights\\"
 dir_masks <- "D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\"
 
-#date_list <- c("2022_07_06")#,
-
-# done = done exif copying (1st step)
+#Flight aquisitions that are also the names of folders containing the data per flight
 date_list <-  c(
-# "2022_04_23", #done_exif #corrected
-# "2022_05_08", #done_exif #corrected
-# "2022_05_27", #done_exif #corrected   - attempted on I (that carshed) but crashed so redid on G      # 
-# "2022_06_08", #done_exif #corrected
-# "2022_06_23"#done_exif #corrected
-
-                
-                #"2022_07_06" #done_exif #corrected
-                # "2022_07_22",#done_exif #corrected
-  ## JAKE CSV   # "2022_07_27",#done_exif  #corrected
-                # "2022_08_05",#done_exif  #corrected
-                # "2022_08_24"#done_exif  #corrected
-  
-                # "2022_09_08", #done_exif #corrected
-                # "2022_09_20",#done_exif #corrected
-                "2022_10_05"#done_exif #corrected
-                # "2022_10_20" # done_exif #corrected
-# "2022_11_28",## JAKE  #done_exif #CORRECTED
-                 # "2023_02_17",#done_exif #corrected
-                 # "2023_03_22", #done_exif #corrected
-                 # "2023_04_05",#done_exif #corrected
-                 # "2023_04_26"#done_exif #corrected
- #"2023_05_10"## JAKE #done_exif #CORRECTED
-              # "2023_05_24"#no masks,redo with masks
- # "2023_06_21", ## JAKE #no masks,redo with masks
- #  "2023_08_17" ## JAKE #no masks, redo with masks
-)
+                "2022_04_23", 
+                "2022_05_08", 
+                "2022_05_27", 
+                "2022_06_08", 
+                "2022_06_23"
+                )
 date_list               
 
-#2022_07_06, 2022_07_22, 2022_07_27, 2022_08_05, 2022_08_24 done for "Micasense_cleaned_org_save" and "Micasense_cleaned"
-date_range <- "2022_09_08-2022_10_20" #"2023_05_24" #2022_04_23-2022_06_23" #2022_09_08-2022_10_20"  #"2022_07_06-2022_08_24" #"2022_07_06_to_2022_08_24"
+date_range <- "2022_04_23-2022_06_23" # This is used in the below code as a suffix to name the rds of corrected exif data
 
-ext_save <- "_save" #make either "" for "Micasense_Cleaned" or "_org_save" for "Micasense_Cleaned_org_save"
+ext_save <- "_save" #make either (1)"" for "Micasense_Cleaned" 
+                              #or (2) "_save" for "Micasense_Cleaned_save" --------3333333333333333333333333333333333333333333333333333333333------
 
 
 ################################################################################
 # (1) read XMP data into R format and save as RDS
+################################################################################
 
-# Set the number of cores you want to use for runnning in parallel
-# num_cores <- 4 
-# cl <- makeCluster(num_cores, outfile = "")# Register parallel backend using doParallel
-# #registerDoParallel(cl)
-# 
-# # Function to track progress using the progress bar
-# progress_update <- function(value) {
-#   if (!interactive()) return()  # Skip updates if not running interactively
-#   pb <- get_progress()  # Get the progress bar object
-#   pb$tick(value = value)  # Update the progress bar
-# }
 
-# make an empty dataframe to add XMP data to 
-df_all = data.frame()
-
-### Below is Not paralized: ---------------------------------------------------------------------------
 for (x in seq_along(date_list)){
   
   for (j in 1:10){ # bands 1 through 10 
     
-    pics = list.files(paste0(dir, date_list[x],"\\1_Data\\Micasense_Cleaned",ext_save), #path the MS_original that is copied
+    pics = list.files(paste0(dir, date_list[x],"\\1_Data\\Micasense_Cleaned",ext_save), #path the Micasense_Cleaned_save that is the original copied that will NOT be written over
                       pattern = c(paste0("IMG_...._", j, ".tif"), paste0("IMG_...._", j, "_", ".tif")), recursive = TRUE, 
-                      full.names = TRUE) # list of directories to images
+                      full.names = TRUE) # list of directories to all images
     
-    #getting names of masks
-    mask_images <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_list[x],"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks
-    mask_img_names <- gsub("_mask\\.png$", "", mask_images)
+    # Getting names of masks
+    mask_images <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_list[x],"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks that are exported from metashape 
+    mask_img_names <- gsub("_mask\\.png$", "", mask_images) # removes the suffix "_mask.png" from each element in the 'mask_images' list, ie : IMG_0027_1_mask.png becomes : IMG_0027_1 
+    # IMG_0027_1 will match an image name in the MicaSense_Cleaned_save folder, therefore the list of mask_img_names will be used to identify panel images
 
-    for (i in 1:length(pics)){
+    for (i in 1:length(pics)){ #for each image in Micasense_Cleaned_save, one at a time
       pic = pics[i]
-      pic_root <- gsub(".*/(IMG_.*)(\\.tif)$", "\\1", pic)
+      pic_root <- gsub(".*/(IMG_.*)(\\.tif)$", "\\1", pic)# The pattern captures the filename starting with "IMG_" and ending with ".tif".Ie: IMG_0027_1.tiff becomes IMG_0027_1
       print(pic_root)
       
-      if (substr(pic_root,11,11) == "0") { #distinguishes between _1 and _10
+      if (substr(pic_root,11,11) == "0") { # Distinguishes between _1 (band 1) and _10 (band 10), ie IMG_0027_1 verse IMG_0027_10
         band = substr(pic_root,10,11) # for _10
-      } else {
-        band = substr(pic_root,10,10)
-        } # for _1
+      } else { 
+        band = substr(pic_root,10,10) # for _1, _2, _3, ... _9 (bands 1-9)
+        } 
       
       img_exif = read_exif(pic) # read the XMP data 
       print(paste0(date_list[x], " band ", j, " ", i, "/", length(pics))) # keep track of progress
       
-      #creating df with same column names as exif data
-      if (i == 1){ # if it's the first image, make new df from XMP data 
+      # Creating df with same column names as exif data
+      if (i == 1){ # If it's the first image, make new df from XMP data 
         exif_df = as.data.frame(img_exif) %>% 
-          mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names, 1, 0))
-      } else {   # otherwise add each new image exif to dataframe
+          mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names, 1, 0)) # Give a value of 1 if the pic root name is in the list of mask root names and is therefore a calibration panel, give 0 otherwise (ie not a panel) 
+      } else {   # Add each new image exif to dataframe
         exif_df = merge(exif_df, img_exif, by = intersect(names(exif_df), names(img_exif)), all = TRUE)%>%
-          mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names, 1, 0))
+          mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names, 1, 0)) # Give a value of 1 if the pic root name is in the list of mask root names and is therefore a calibration panel, give 0 otherwise (ie not a panel) 
       }
     }
     if(!dir.exists(paste0(dir,date_list[x],"\\1_Data\\CSV\\"))){ #creating CSV folders
       dir.create(paste0(dir,date_list[x],"\\1_Data\\CSV\\"))
     }
-    if(!dir.exists(paste0(dir,date_list[x],"\\1_Data\\CSV\\Corrected_values\\"))){ #Creating Corrected_Values folder
+    if(!dir.exists(paste0(dir,date_list[x],"\\1_Data\\CSV\\Corrected_values\\"))){ #Creating Corrected_values folder to save the XMP data as rds files
       dir.create(paste0(dir,date_list[x],"\\1_Data\\CSV\\Corrected_values\\"))
     }
     saveRDS(exif_df, paste0(dir,date_list[x], "\\1_Data\\CSV\\Corrected_values\\df_", date_list[x], "_", j, ".rds")) # save output for each band, set path
   } 
 }
 
-############# correct panel flag: ---------------------------------------------------------
-# chekcing panle_flag:
-x = 2
-j = 1
+### Ensuring that panels are correctly flagged is important for the rest of the code
+###  Here we are checking that the panel_flag is correct:
+x = 2 # isolating a date (2022_05_08 here)
+j = 1 # isolating a band (band 1 here)
+
 test1 <- read_rds(paste0(dir,date_list[x], "\\1_Data\\CSV\\Corrected_values\\df_", date_list[x], "_", j, ".rds")) 
-unique(test1$panel_flag)
+unique(test1$panel_flag) # should give 0 & 1
+test1[test1$panel_flag == 1, ] # check that the img names here that are flagged as panels are in fact panels in your folders 
 
-test1[test1$panel_flag == 1, ]
 
-for (x in 1:length(date_list)){
-  for (j in c(1:10)){
-    print(date_list[x])
-    exif_df = read_rds(paste0(dir,date_list[x], "\\1_Data\\CSV\\Corrected_values\\df_", date_list[x], "_", j, ".rds")) # SET PATH
-    
-    #getting list of mask images names:
-    mask_images <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_list[x],"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks
-    mask_img_names <- gsub("_mask\\.png$", "", mask_images)
-    
-    exif_df_new <-  exif_df %>%
-      mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names, 1, 0)) %>%
-      saveRDS(paste0(dir,date_list[x], "\\1_Data\\CSV\\Corrected_values\\df_", date_list[x], "_", j, ".rds"))
-  }
-}
-##### Read them in from the rds files now -----
+### Joining all bands and date's XMP data to one dataframe to speed up the editing process
 
 for (x in 1:length(date_list)){
   for (j in c(1:10)){
@@ -187,65 +143,51 @@ for (x in 1:length(date_list)){
     xmp_all = exif_df_all 
   }
 }
-# 
 
-### adding in panels
-# x=  2
-# date_list[x]
-# mask_images <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_list[x],"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks
-# mask_img_names <- gsub("_mask\\.png$", "", mask_images)
-# 
-# xmp_all$SourceFile
-# 
-# xmp_all_new <- xmp_all %>%
-#   mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names, 1, 0))
-# 
-# 
-# xmp_all_new %>%
-#   saveRDS(paste0(dir, "CSV\\Corrected_values\\XMP_", date_range,".rds"))
-###
+# Creating a Date column that is a lubridate object
 xmp_all$Date <- as.Date(xmp_all$CreateDate, format = "%Y:%m:%d")
 
-missing_imgs <- xmp_all[is.na(xmp_all$Date),]$FileName
-length(missing_imgs)
-missing_imgs_roots <- sub("_[^_]*$", "", missing_imgs)
-missing_imgs_roots
+missing_imgs <- xmp_all[is.na(xmp_all$Date),]$FileName # Extracts the FileName for rows that have a Date of NA
+length(missing_imgs) #check if there are any images missing Dates
+missing_imgs_roots <- sub("_[^_]*$", "", missing_imgs) # gets root image names of missing images (In my experience there are very few of these cases, if any, 
+                                                       # and it happens when the img is corrupt and cant be opened, we fly at 87-89% overlap, 
+                                                       # so I delete these images since deleting ~2 images in ~ 1200 does not affect the output)
+missing_imgs_roots #print img roots 
 
-unique(xmp_all$Date)
-
-unique(xmp_all$panel_flag[xmp_all$Date == "2023-06-21"])
-
+# Create a new df "xmp_all_new" that filters out images that were determined to be corrupt and have missing information above
 xmp_all_new <- xmp_all %>%
   mutate(img_name = str_split_i(FileName, ".tif", i = 1),
          img_root = sub("_(\\d+)$", "", img_name))%>%
   filter(!img_root %in% missing_imgs_roots)%>%
   dplyr::select(!c(img_name, img_root))
 
-unique(xmp_all_new$Date)
-dim(xmp_all)
+unique(xmp_all_new$Date) #check all dates are present and if any NA remain
+dim(xmp_all) # Compare dimension of xmp_all to dimension of xmp_all_new below to make sure you only remove the intended photos
 dim(xmp_all_new)
-colnames(xmp_all_new)
+colnames(xmp_all_new) # Check column names 
 
-saveRDS(xmp_all_new, paste0(dir, "CSV\\Corrected_values\\XMP_", date_range,".rds"))
+saveRDS(xmp_all_new, paste0(dir, "CSV\\Corrected_values\\XMP_", date_range,".rds")) # Save out the joined df that now has a Date column to distinguish between flights, and has 
 
 unique(xmp_all_new$panel_flag)
-xmp_all_new[xmp_all_new$panel_flag == 1,]$FileName
-#testing panel_flag works 
-# tail(xmp_all_new)
+xmp_all_new[xmp_all_new$panel_flag == 1,]$FileName # Again just checking that the proper images are labelled as panels
+                                                   # I'll take a few min here and just check a few of the images in their respective folders that are labelled panels her and make sure they are panel imgs
+                                                   # (our panels are at the beginning, at battery swaps and the end so doing this manual check is quick)
+
 ################################################################################
-# (2) compute sun-sensor angle for all photos 
+# (2) Compute sun-sensor angle for all photos 
+################################################################################
 
 # Define a function to compute the DLS-Sun angle in R
 # from the position of the sun,
 # the roll, pitch, and yaw of the drone,
 # and the orientation vector of the DLS
+
 compute_sun_angle = function(SolarElevation, SolarAzimuth, Roll, Pitch, Yaw) {
   
   # Define the orientation vector of the DLS in body coordinates
-  # DLS pointing down?
   ori = c(0, 0, -1)
   
-  # Convert to numeric
+  # Convert below XMP columns to numeric
   SolarElevation = as.numeric(SolarElevation)
   SolarAzimuth = as.numeric(SolarAzimuth)
   Roll = as.numeric(Roll)
@@ -258,7 +200,7 @@ compute_sun_angle = function(SolarElevation, SolarAzimuth, Roll, Pitch, Yaw) {
     sin(SolarAzimuth) * cos(SolarElevation),
     -sin(SolarElevation))
   
-  # transpose vector to matrix
+  # Transpose vector to matrix
   nSun = t(matrix(elements, ncol = 3))
   
   # Convert the sensor orientation angles (Roll, Pitch, Yaw) to a 3x3 rotation matrix
@@ -271,7 +213,8 @@ compute_sun_angle = function(SolarElevation, SolarAzimuth, Roll, Pitch, Yaw) {
   Ryaw = matrix(c(c1, s1, 0, -s1, c1, 0, 0, 0, 1), ncol = 3, byrow = TRUE)
   Rpitch = matrix(c(c2, 0, -s2, 0, 1, 0, s2, 0, c2), ncol = 3, byrow = TRUE)
   Rroll = matrix(c(1, 0, 0, 0, c3, s3, 0, -s3, c3), ncol = 3, byrow = TRUE)
-  # take the dot product of the three matrices
+  
+  # Take the dot product of the three matrices
   R_sensor = Ryaw %*% Rpitch %*% Rroll
   
   # Compute the orientation vector of the sensor in NED coordinates
@@ -286,47 +229,45 @@ compute_sun_angle = function(SolarElevation, SolarAzimuth, Roll, Pitch, Yaw) {
 
 read_rds(paste0(dir, "CSV\\Corrected_values\\XMP_", date_range,".rds")) %>% # SET PATH
   rowwise() %>% 
-  mutate(SunSensorAngle = compute_sun_angle(SolarElevation, SolarAzimuth, Roll, Pitch, Yaw)) %>% 
-  saveRDS(paste0(dir, "CSV\\Corrected_values\\XMP_", date_range,"_with_SSA.rds"))
+  mutate(SunSensorAngle = compute_sun_angle(SolarElevation, SolarAzimuth, Roll, Pitch, Yaw)) %>% # Make a SunSensorAngle column with the outputs of the above function per image
+  saveRDS(paste0(dir, "CSV\\Corrected_values\\XMP_", date_range,"_with_SSA.rds")) # Save XMP rds file with sun sensor angle added
 
 ################################################################################
-# (3) estimate scattered:direct ratio for each flight by relating cosine of the sun-sensor angle to 
-# spectral irradiance measured by the DLS. This relationship, in a perfect world,
-# should give you the scattered irradiance as the intercept, which is independent of angle,
-# and the direct, which is the slope, and perfecntly proportional to sun angle. In reality, 
-# these relatiopnships are extremely messy and most data need to be discarded.
-# First, generate a rolling regression of this linear relationship over a certain time window.
-# Second, drop any models with negative slopes or intercepts (physically impossible).
-# Third, eliminate all models with poor fits (R^2).
+# (3) Estimate scattered:direct ratio for each flight by relating cosine of the sun-sensor angle to 
+# spectral irradiance measured by the DLS. 
 
-# Parameters to set: the R^2 threshold (here .4), the time window for the rolling regression (here 30 seconds)
+## This relationship, in a perfect world, should give you the scattered irradiance as the intercept, which is independent of angle,
+## and the direct irradiance, which is the slope, and therefore perfectly proportional to sun angle. 
+## In reality, these relationships are extremely messy and most data needs to be discarded.
+################################################################################
 
-xmp_all_ssa = read_rds(paste0(dir, "CSV\\Corrected_values\\XMP_", date_range,"_with_SSA.rds")) %>% # SET PATH
-  
-  # EDIT THIS PART
-  
-  # mutate(Date = sub(".+Flights\\\\(.+?)\\\\1_Data.+", "\\1", Directory) # the Date from the directory
-  #        # #panel_flag already exists subdirectory = grepl("Panels", Directory), # folder where the images are (all previous slashes are backslashes, first /)
-  #        # panel_flag = if_else(subdirectory == TRUE, 1, 0)
-  #        ) %>% # the only use of subdirectory is to check if images are in PANELS
+# Below are three main steps to find the estimated scattered:direct ratio:
+### (1) First, generate a rolling regression of this linear relationship over a certain time window.
+### (2) Second, eliminate all models with poor fits (R^2).
+### (3) Third, drop any models with negative slopes or intercepts (physically impossible).
+
+xmp_all_ssa = read_rds(paste0(dir, "CSV\\Corrected_values\\XMP_", date_range,"_with_SSA.rds")) %>% # SET PATH to rds file
+  # Converting from radians to degrees
   mutate(Yaw_deg = rad2deg(as.numeric(Yaw)),
          Roll_deg = rad2deg(as.numeric(Roll)),
          Pitch_deg = rad2deg(as.numeric(Pitch))) %>% 
+  # Grouping images by Date and band
   group_by(Date, BandName) %>% 
-  arrange(ymd_hms(DateTimeOriginal)) %>% 
-  mutate(GPSLatitude_plot = scale(as.numeric(GPSLatitude)), # these are for clean ggplotting, no other reason to scale
+  arrange(ymd_hms(DateTimeOriginal)) %>% # Converting DateTimeOriginal to a Date and Time object and arranging in order 
+  mutate(GPSLatitude_plot = scale(as.numeric(GPSLatitude)), # These are for clean ggplotting, no other reason to scale
          GPSLongitude_plot = scale(as.numeric(GPSLongitude)),
          cos_SSA = cos(SunSensorAngle),
          Irradiance = as.numeric(Irradiance),
          Date2 = ymd_hms(DateTimeOriginal)) # this is the date/time we will use moving forward 
 
-#checking panels:
+# Checking panels:
 head(xmp_all_ssa$Date)[1]
 head(xmp_all_ssa$Date2)[1]
-# check that the sun-sensor angles are within a reasonable range
-# should range from 30ish degrees mid summer to 80 ish degrees mid winter
+
+# Check that the sun-sensor angles are within a reasonable range
+# Should range from 30ish degrees mid summer to 80 ish degrees mid winter
 (SSA_plot <- xmp_all_ssa %>%
-  filter(BandName == "Blue") %>% # identical across bands in a rig, just check one 
+  filter(BandName == "Blue") %>% # identical across bands in a rig, so just check one band
   group_by(Date, BandName) %>% 
   ggplot(aes(x = Date2, y = rad2deg(SunSensorAngle))) +
   geom_point(color = "red4", alpha = .5) +
@@ -334,32 +275,35 @@ head(xmp_all_ssa$Date2)[1]
   facet_wrap(. ~ Date, 
              scales = "free_x"))
 
-ggsave(paste0(date_range,"_SSA_plots.pdf"), SSA_plot, path = paste0(dir, "CSV\\PLOTS\\"))
+ggsave(paste0(date_range,"_SSA_plots.pdf"), SSA_plot, path = paste0(dir, "CSV\\PLOTS\\")) #change path to where you would like these plots saved to
 
+
+#### (1) Generate a rolling regression of the linear relationship (spectral_irr = direct_irr * cos(SSA) + scattered_irr)
+# via a regression of Irradiance on cos_SSA over a specified time window (30s here)
 mod_frame = xmp_all_ssa %>% 
   drop_na(Date2) %>% 
   drop_na(cos_SSA) %>% 
   drop_na(Irradiance) %>% 
-  # fir a rolling regression; for each image, fit a linear model of all images (of the same band) 
-  # within 30 seconds of the image
+  # Fit a rolling regression
+  # for each image, fit a linear model of all images (of the same band) within 30 seconds of the image
   tidyfit::regress(Irradiance ~ cos_SSA, m("lm"),
                    .cv = "sliding_index", .cv_args = list(lookback = lubridate::seconds(30), index = "Date2"),
                    .force_cv = TRUE, .return_slices = TRUE)
 
 
-
+# df : summary of models, adding R sqaured and Dates
 df = mod_frame %>% 
-  # get a summary of each model, extract the r squared
+  # Get a summary of each model and extract the r squared value
   mutate(R2 = map(model_object, function(obj) summary(obj)$adj.r.squared)) %>% 
-  # extract the slope and intercept
+  # Extract the slope and intercept
   coef() %>% 
   unnest(model_info) %>% 
   mutate(Date2 = ymd_hms(slice_id)) 
 
-saveRDS(df, paste0(dir, "CSV\\Corrected_values\\", date_range,"_rolling_regression.rds")) #SET PATH
-#here
+saveRDS(df, paste0(dir, "CSV\\Corrected_values\\", date_range,"_rolling_regression.rds")) #SET PATH to save the rds to 
 df = read_rds(paste0(dir, "CSV\\Corrected_values\\", date_range,"_rolling_regression.rds"))
-#here
+
+# df_params : adding slope (direct irradiance) and y-intercept (scatterd irradiance) values
 df_params = df %>%
   dplyr::select(Date:estimate, Date2) %>% 
   # we will have to go from long, with 2 observations per model, to wide
@@ -367,10 +311,13 @@ df_params = df %>%
   dplyr::rename("Intercept" = `(Intercept)`,
                 "Slope" = "cos_SSA")
 
+# Cleaning up the df
 df_p = df %>%
   filter(term == "cos_SSA") %>% 
   dplyr::select(Date:model, R2, p.value, Date2)
 
+# Joining model info, parameter (slope, y intercept) info and XMP data with sun sensor angle and using the linear relationship 
+# (spectral_irr = direct_irr * cos(SSA) + scattered_irr) to create % scattered and scattered/direct ratios
 df_filtered = df_params %>% 
   left_join(df_p) %>% 
   left_join(xmp_all_ssa) %>% 
@@ -378,8 +325,13 @@ df_filtered = df_params %>%
          dir_diff = Intercept/Slope)
 
 df_filtered$SourceFile
+
+#### (2 & 3) Eliminate all models with poor fits (R^2).
+#### & drop any models with negative slopes or intercepts (physically impossible)
+ 
+# Parameters to set: the R^2 threshold (here 0.4)
+
 df_to_use = df_filtered %>% 
-  #filter(BandName %in% c("Blue","Red-650", "NIR")) %>% 
   mutate(R2 = as.numeric(R2)) %>% 
   filter(R2 > .4 
          & Slope > 0 & Intercept > 0) %>% 
@@ -387,14 +339,12 @@ df_to_use = df_filtered %>%
   mutate(mean_scattered = mean(percent_scattered),
          dir_diff_ratio = mean(dir_diff))
 
-saveRDS(df_to_use, paste0(dir, "CSV\\Corrected_values\\", date_range,"_rolling_regression_used.rds")) # SET PATH
+saveRDS(df_to_use, paste0(dir, "CSV\\Corrected_values\\", date_range,"_rolling_regression_used.rds"))  #SET PATH to save the rds to 
+df_to_use = read_rds(paste0(dir, "CSV\\Corrected_values\\", date_range,"_rolling_regression_used.rds")) # read in rds that was just saved
 
-df_to_use = read_rds(paste0(dir, "CSV\\Corrected_values\\", date_range,"_rolling_regression_used.rds"))
-
-
-
-# plot the pattern in the rolling regression, make sure you're keeping enough models
-# use this plot to check parameters 
+#### Checks via plotting:
+# Plot the pattern in the rolling regression and make sure you're keeping enough models
+# Use this plot to check parameters 
 (RR_params <- df_to_use %>%
   group_by(Date, BandName) %>% 
   ggplot(aes(x = Date2, y = percent_scattered, color = R2)) +
@@ -410,10 +360,10 @@ df_to_use = read_rds(paste0(dir, "CSV\\Corrected_values\\", date_range,"_rolling
   facet_wrap(. ~ Date, 
              scales = "free"))
 
-ggsave(paste0(date_range,"_checkRollingRegressionParams_plots.pdf"), RR_params, path = paste0(dir, "CSV\\PLOTS\\"))
+ggsave(paste0(date_range,"_checkRollingRegressionParams_plots.pdf"), RR_params, path = paste0(dir, "CSV\\PLOTS\\")) #set the path to save the plot to
 
-# check that the linear relationships you're keeping look realistic,
-# should be steeper for sunny days, shallower for cloudy
+# Check that the linear relationships you're keeping look realistic,
+# Slope should be steeper for sunny days (ie more direct irradiance), shallower for cloudy
 (linear_plots <- df_to_use %>%
   filter(BandName == "Blue") %>% 
   ggplot(aes(x = cos_SSA, y = Irradiance, color = R2)) +
@@ -428,14 +378,13 @@ ggsave(paste0(date_range,"_checkRollingRegressionParams_plots.pdf"), RR_params, 
   facet_wrap(. ~ Date, 
              scales = "free_y"))
 
-ggsave(paste0(date_range,"_LinearRegression_plots.pdf"), linear_plots, path = paste0(dir, "CSV\\PLOTS\\"))
+ggsave(paste0(date_range,"_LinearRegression_plots.pdf"), linear_plots, path = paste0(dir, "CSV\\PLOTS\\")) #set the path to save the plot to
 
-df_filtered <- df_filtered %>%
-  filter(GPSLongitude != 0 & GPSLatitude != 0)
-  
-# check that there is no excessive spatial pattern in the data 
+
+# Check that there is no excessive spatial pattern in the data 
 (photos_kept <- df_to_use %>%
-  filter(GPSLongitude != 0 & GPSLatitude != 0) %>% 
+  filter(GPSLongitude != 0 & GPSLatitude != 0) %>% # Filter out imgs with GPSLongitude and GPSLatitude of zero, 
+                                                   # this is rare and in my experience were corrupted imgs where the XMP could not be properly read
   ggplot(aes(x = GPSLongitude, y = GPSLatitude, color = rad2deg(SunSensorAngle))) +
   geom_point(data = df_filtered, color = "grey60") +
   geom_point(size = 3) +
@@ -443,8 +392,9 @@ df_filtered <- df_filtered %>%
   scale_color_viridis_c() +
   facet_wrap(. ~ Date, scales = "free"))
 
-ggsave(paste0(date_range,"_GPSphotosKept_plots.pdf"), photos_kept, path = paste0(dir, "CSV\\PLOTS\\"))
+ggsave(paste0(date_range,"_GPSphotosKept_plots.pdf"), photos_kept, path = paste0(dir, "CSV\\PLOTS\\")) #set the path to save the plot to
 
+# Creating the final ratios df from the df of filtered models 
 (ratios = df_to_use %>% 
     dplyr::select(Date, mean_scattered, dir_diff_ratio,
                   GPSLatitude, GPSLongitude, Date2) %>% 
@@ -457,16 +407,17 @@ ggsave(paste0(date_range,"_GPSphotosKept_plots.pdf"), photos_kept, path = paste0
 saveRDS(ratios, paste0(dir, "CSV\\Corrected_values\\", date_range,"_ratios.rds")) # SET PATH
 ratios <- readRDS(paste0(dir, "CSV\\Corrected_values\\", date_range,"_ratios.rds"))
 
-# print the values to use in the calibration
+# Print the values to use in the calibration as a check (does this ratio looks reasonable?)
 round(ratios$dir_diff_ratio, 2)
 
 ################################################################################
-# (4) compute horizontal (corrected) irradiance for the DLS for all photos
+# (4) Compute horizontal (corrected) irradiance for the DLS for all photos
+################################################################################
 
 # test = xmp_all_ssa[50,]
 # phi = test$SunSensorAngle
 
-# this is the Fresnel correction, which adjusts for the DLS reflecting, rather than 
+# This is the Fresnel correction, which adjusts for the DLS reflecting, rather than 
 # measuring, some of the irradiance that hits it
 # this is mostly taken directly from the micasense github 
 fresnel_transmission = function(phi, n1, n2, polarization) {
@@ -491,6 +442,7 @@ multilayer_transmission = function(phi, n, polarization) {
   return(T)
 }
 
+# Defining the fresnel_correction function 
 fresnel_correction = function(x) {
   
   Irradiance = x$Irradiance
@@ -507,8 +459,7 @@ fresnel_correction = function(x) {
   return(Fresnel)
 }
 
-################################################################################
-# now put it all together to compute the horizontal irradiance, the irradiance,
+# now put it all together to compute the horizontal irradiance,
 # which can be thought of as a corrected value for the irradiance
 # reaching a point on the flat ground directly underneath the drone 
 
@@ -516,18 +467,17 @@ xmp_corrected = xmp_all_ssa %>%
   group_by(Date, BandName) %>% 
   #filter(BandName == "Red") %>% 
   #slice_head(n = 900) %>% 
-  nest(data = c(Irradiance, SunSensorAngle)) %>% 
-  mutate(Fresnel = as.numeric(map(.x = data, .f = fresnel_correction))) %>% 
-  unnest(data) %>% 
-  # now join the ratios
+  nest(data = c(Irradiance, SunSensorAngle)) %>% # Creates a nested df where each group is stored as a list-column named data, containing the variables Irradiance and SunSensorAngle
+  mutate(Fresnel = as.numeric(map(.x = data, .f = fresnel_correction))) %>% # Applies the fresnel_correction function to each group of nested data
+  unnest(data) %>% #unnesting
+  # Joining the ratios
   left_join(ratios, by = "Date") %>% 
-  #mutate(HorizontalIrradiance_new = CorrectedIrradiance*(cos((90-as.numeric(SolarElevation))*pi/180)+dir_diff_ratio)/(cos(SunSensorAngle*pi/180)+dir_diff_ratio))
   mutate(SensorIrradiance = as.numeric(SpectralIrradiance) / Fresnel, # irradiance adjusted for some reflected light from the DLS diffuser
          DirectIrradiance_new = SensorIrradiance / (dir_diff_ratio + cos(as.numeric(SunSensorAngle))), # adjusted for sun angle, 
-         #the DIRECT portion of irradiance if the DLS were pointing straight up
          HorizontalIrradiance_new = DirectIrradiance_new * (dir_diff_ratio + sin(as.numeric(SolarElevation))), 
          ScatteredIrradiance_new = HorizontalIrradiance_new - DirectIrradiance_new)
 
+# Plotting sensor irradiance and horizontal/Direct/Scattered irradiance
 (Sensor_irr <- xmp_corrected %>% 
   filter(BandName == "Blue") %>% 
   ggplot(aes(x = Date2, y = SensorIrradiance)) +
@@ -541,16 +491,15 @@ xmp_corrected = xmp_all_ssa %>%
   facet_wrap(. ~ Date, scales = "free",
              ncol = 3))
 
-ggsave(paste0(date_range,"_SensorIrradiance_plots.pdf"), Sensor_irr, path = paste0(dir, "CSV\\PLOTS\\"))
+ggsave(paste0(date_range,"_SensorIrradiance_plots.pdf"), Sensor_irr, path = paste0(dir, "CSV\\PLOTS\\")) #set the path to save the plot to
 
-
+# Looking at spatial distribution of SSA
 xmp_corrected %>%
   filter(BandName == "NIR") %>% 
   filter(GPSLongitude != 0 & GPSLatitude != 0)%>%
   ggplot(aes(x = GPSLongitude, y = GPSLatitude, color = rad2deg(SunSensorAngle))) +
   #geom_point(data = df_filtered, color = "grey60") +
-  geom_point(size = 4#data = filter(df_filtered, Slope > 0)
-  ) +
+  geom_point(size = 4) +
   theme_bw() +
   scale_color_viridis_c() +
   facet_wrap(. ~ Date, scales = "free")
@@ -558,18 +507,15 @@ xmp_corrected %>%
 saveRDS(xmp_corrected, paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_corrected.rds"))
 
 ################################################################################
-# (4) compute horizontal (corrected) irradiance for the DLS for all photos
-# correct the photos not in the "_save" folder
+# (5) Writing over img metadata with corrected SSA, horizontal irradiance, direct irradiance, and scattered irradiance
+#### correct the photos NOT in the "_save" folder
+################################################################################
 
-xmp_corrected = readRDS(paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_corrected.rds")) %>% 
-  mutate(TargetFile = str_replace(SourceFile, ext_save, ""),
-         TargetFile_G = str_replace(TargetFile, "^I", "G"))
-
-
-# as vectors
+xmp_corrected = readRDS(paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_corrected.rds")) %>% #path to corrected xmp data .rds file
+  mutate(TargetFile = str_replace(SourceFile, ext_save, "")) # current SourceFile is for MicaSense_Cleaned_save, here we are removing the "_save" so we just 
+                                                             # call the MicaSense_Cleaned folder, this is the folder of images whose meta data will get edited
+# As vectors
 img_list = xmp_corrected$FileName
-targets_Gdrive = xmp_corrected$TargetFile_G
-targets_Gdrive
 targets = xmp_corrected$TargetFile
 SSA = xmp_corrected$SunSensorAngle
 horirrorig = xmp_corrected$HorizontalIrradiance
@@ -577,116 +523,42 @@ horirr = xmp_corrected$HorizontalIrradiance_new
 dirirr = xmp_corrected$DirectIrradiance_new
 scairr = xmp_corrected$ScatteredIrradiance_new
 
-targets_Gdrive[1]
-## 2022_07_06 updated first 6 images --- want to check its updating right ones first
+targets[1] #checking its the right imgs
 
-for (i in seq_along(targets_Gdrive)) {
-  
+for (i in seq_along(targets)) {
   # given a micasense config file, overwrite tags with computed values
   # using exiftool_call from the exifr package
-  call = paste0("-config C:/Users/owaite/Documents/Scripts/MicaSense_Correction/MicaSense.config", # SET PATH
+  call = paste0("-config C:/Users/owaite/Documents/Scripts/MicaSense_Correction/MicaSense.config", # SET PATH to the config file, this file is on the PARSER GitHub in the same folder as this R script
                 " -overwrite_original_in_place",
                 " -SunSensorAngle=", SSA[i],
                 " -HorizontalIrradiance=", horirr[i],
                 " -HorizontalIrradianceDLS2=", horirrorig[i],
                 " -DirectIrradiance=", dirirr[i],
                 " -ScatteredIrradiance=", scairr[i], " ",
-                targets_Gdrive[i])
+                targets[i])
   
   exiftool_call(call, quiet = TRUE)
-  print(paste0(i, "/", length(targets_Gdrive), " updated img:",img_list[i] ))
+  print(paste0(i, "/", length(targets), " updated img:",img_list[i] ))
 }
 
 
 ################################################################################
-# (5) select the best calibration panel to use for each flight,
+# (6) Select the best calibration panel to use for each flight,
 # requires 'PANELS/' and 'MASKS/' directories with matching images 
-
-
-# select the best panels to use 
-# currently this script requires masks to have been generated already 
-xmp_corrected = read_rds(paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_corrected.rds")) %>%
-  mutate(TargetFile = str_replace(SourceFile, ext_save, ""),
-         SourceFile_G = str_replace(TargetFile, "^I", "G"))
-unique(xmp_corrected$Date)
-# xmp_corrected_old <- xmp_corrected
-# 
-# ## adding panel flag to 2023-04-26
-# date <- "2023_04_26"
-# mask_images <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date,"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks
-# mask_img_names <- gsub("_mask\\.png$", "", mask_images)
-# 
-# xmp_corrected_23_04_26 <- xmp_corrected %>%
-#   filter(Date == "2023-04-26") %>%
-#   mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names, 1, 0))
-# unique(xmp_corrected_23_04_26$Date)
-# unique(xmp_corrected_23_04_26$panel_flag)
-# # 
-# ## correcting panel_flag for 2023_04_05:
-# date <- "2023_04_05"
-# mask_images <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date,"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks
-# mask_img_names <- gsub("_mask\\.png$", "", mask_images)
-# 
-# xmp_corrected_23_04_05 <- xmp_corrected %>%
-#   filter(Date == "2023-04-05") %>%
-#   mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names, 1, 0))
-# unique(xmp_corrected_23_04_05$Date)
-# unique(xmp_corrected_23_04_05$panel_flag)
-# 
-# xmp_corrected_23_04_05[xmp_corrected_23_04_05$panel_flag == 1,]$FileName
-# 
-# 
-# xmp_corrected_old2flights <- xmp_corrected %>%
-#   filter(Date != "2023-04-26")%>%
-#   filter(Date != "2023-04-05")
-# 
-# unique(xmp_corrected_old2flights$Date)
-# 
-# xmp_corrected <- rbind(xmp_corrected_old2flights,xmp_corrected_23_04_05, xmp_corrected_23_04_26 )
-# unique(xmp_corrected$Date)
-
-###
-# ## correcting panel_flag for 2023_06_21:
-# date_06 <- "2023_06_21"
-# mask_images_06 <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_06,"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks
-# mask_img_names_06 <- gsub("_mask\\.png$", "", mask_images_06)
-# xmp_corrected_06 <- xmp_corrected %>%
-#     filter(Date == "2023-06-21") %>%
-#     mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names_06, 1, 0))
-# length(xmp_corrected_06[xmp_corrected_06$panel_flag == 1,]$FileName)
-# length(mask_img_names_06)
-# 
-# date_08 <- "2023_08_17"
-# mask_images_08 <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_08,"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks
-# mask_img_names_08 <- gsub("_mask\\.png$", "", mask_images_08)
-# xmp_corrected_08 <- xmp_corrected %>%
-#   filter(Date == "2023-08-17") %>%
-#   mutate(panel_flag = ifelse( gsub(".*/(IMG_.*)(\\.tif)$", "\\1", SourceFile) %in% mask_img_names_08, 1, 0))
-# length(xmp_corrected_08[xmp_corrected_08$panel_flag == 1,]$FileName)
-# length(mask_img_names_08)
-# 
-# xmp_corrected <- rbind(xmp_corrected_06, xmp_corrected_08)
+################################################################################
 
 xmp_panels = xmp_corrected %>% 
-  filter(panel_flag == 1) %>% 
-  mutate(#root = str_split_i(Directory, "\\/", i = 1),
-         img_name = str_split_i(FileName, ".tif", i = 1),
-         #root_new = str_split_i(root, "_save", i = 1),
-         mask_path = paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",gsub("-", "_", Date),"\\2_Inputs\\metashape\\MASKS\\",img_name, "_mask.png"))
+  filter(panel_flag == 1) %>% #isolating panel imgs
+  mutate(img_name = str_split_i(FileName, ".tif", i = 1),
+         mask_path = paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",gsub("-", "_", Date),"\\2_Inputs\\metashape\\MASKS\\",img_name, "_mask.png")) #path to mask imgs, the gsub for Date switched the - to _ to match the folder structure
 
-xmp_panels$img_name
+xmp_panels$img_name #checking img_name is just the root name of the img, ie IMG_1234_1 for imgage # 1234 and band 1 of the micasense
 
-#xmp_panels <- xmp_panels %>%
-#  filter(!img_name %in% c("IMG_0054"))
+unique(xmp_panels$Date) #checking all Dates are present
 
-#"IMG_0029_1","IMG_0029_2","IMG_0029_3","IMG_0029_4" ,"IMG_0029_5" ,"IMG_0029_6","IMG_0029_7","IMG_0029_8" ,"IMG_0029_9" ,"IMG_0029_10",
-                          "IMG_2006_1","IMG_2006_2","IMG_2006_3","IMG_2006_4" ,"IMG_2006_5" ,"IMG_2006_6","IMG_2006_7","IMG_2006_8" ,"IMG_2006_9" ,"IMG_2006_10"))
-
-unique(xmp_panels$Date)
-
+# The get_panel_irr function calculates the mean reflectance value of each panel and the coeficient of variation of the irradiance
 get_panel_irr = function(x) {
-  SourceFile = x$SourceFile_G
-  #SourceFile = x$SourceFile
+  SourceFile = x$SourceFile
   mask_path = x$mask_path
   BlackLevel = x$BlackLevel 
   RadiometricCalibration = x$RadiometricCalibration
