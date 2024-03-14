@@ -58,7 +58,7 @@ for (x in 1:length(date_list)){
   print(date_list[x])
   
   #choosing a directory based on the site
-  #directory locations are the paths to the folder that contains the Nir_shadow_folder and willcontain the updated_metrics_folder
+  #directory locations are the paths to the folder that contains the Nir_shadow_folder and will contain the updated_metrics_folder
   if (site %in% c("Cw_PR_Rainbow_SiteA", "Cw_PR_Rainbow_SiteB")){
     dir = paste0("K:\\",site,"\\Flights\\", date_list[x], "\\2_Inputs\\")
     dir_D = paste0("K:\\",site,"\\Flights\\", date_list[x])
@@ -69,34 +69,34 @@ for (x in 1:length(date_list)){
   }
   
   print(dir)
-  #ms_ortho
+  
+  # Loading in multispectral orthomosaic 
   ms_ortho = rast(list.files(paste0(dir, "metashape\\3_MS_ORTHO\\"), pattern = ".*MS_Calibrated.*_bestPanel.tif$", full.names = TRUE))#path to multispectral ortho
-  ms_ortho_name = names(ms_ortho)[1]
+  ms_ortho_name = names(ms_ortho)[1] #outputs the raster name for band 1: ie: "Fdc_PR_Canoe_2022_04_23_MS_Calibrated_p1114_bestPanel_1"
   ms_ortho_name_root <- substr(ms_ortho_name, 1, nchar(ms_ortho_name) - 2)#getting the root name of the multispectral ortho
-  # ratio = ratios[x,]
   
-  #reading in the NIR shadow mask
-  shadow_mask = rast(list.files(paste0(dir, Nir_shadow_folder,"\\"),  pattern = ".*_NIR_shadow.*_thresh.*_mask2.tif$", full.names = TRUE))## NIr shadow mask, uing the mask from the NIr of the crowns only (ie mask NOT crop)
+  # Reading in the NIR shadow mask
+  shadow_mask = rast(list.files(paste0(dir, Nir_shadow_folder,"\\"),  pattern = ".*_NIR_shadow.*_thresh.*_mask2.tif$", full.names = TRUE))# NIR shadow mask
   
-  #mask NIR shadow to pols:
+  # Mask NIR shadow to pols:
   shadow_mask <- terra::mask(shadow_mask, pols)
   
-  #masking multispectral ortho by shadow mask
+  # Masking multispectral ortho by shadow mask
   ms_mask <- terra::mask(ms_ortho, shadow_mask, maskvalues = 1, updatevalue = NA)
   #writing out the shadow masked multispectral ortho
   terra::writeRaster(ms_mask, paste0(dir, Nir_shadow_folder,"\\",ms_ortho_name_root,"_NirShadow_masked.tif"),
                      overwrite = TRUE)
   # ms_mask <- rast(paste0(dir, Nir_shadow_folder,"\\",ms_ortho_name_root,"_NirShadow_masked.tif"))
   
-  ## mask shadow masked raster to pols
+  # Mask shadow masked raster to pols
   ms_mask <- terra::mask(ms_mask, pols)
-  #write out the masked raster
+  # Write out the masked raster
   terra::writeRaster(ms_mask, paste0(dir, Nir_shadow_folder,"\\",ms_ortho_name_root,"_NirShadow_ms_mask_to_pols.tif"),
                      overwrite = TRUE)
-  #read in the masked ms raster
+  # Read in the masked ms raster
   ms_mask <- rast(paste0(dir, Nir_shadow_folder,"\\",ms_ortho_name_root,"_NirShadow_ms_mask_to_pols.tif"))
   
-  #list of reflectance and index values that will be calculated per tree crown
+  # List of band reflectance and index values that will be calculated per tree crown
   rast_list = list(# reflectance values
     R444 = ms_mask[[1]],
     R475 = ms_mask[[2]],
@@ -141,7 +141,7 @@ for (x in 1:length(date_list)){
   
   rast_all = rast(rast_list)
   
-  #Creating the folder that the rds will be written out to 
+  # Creating the folder that the metric rds files will be written out to 
   if(!dir.exists(paste0(dir_D,"\\",updated_metrics_folder,"\\"))){ 
     dir.create(paste0(dir_D,"\\",updated_metrics_folder,"\\"))}
   
@@ -153,24 +153,22 @@ for (x in 1:length(date_list)){
   df_count = exact_extract(ms_mask[[1]], pols, fun = "count", progress = TRUE, append_cols = c("treeID","Edited","tag__","rep","blk","fam","fem"))
   # Joining the mean index values df and the count values df
   df_spectral_mean_count <- merge(df_spectral_mean,df_count, by = c("treeID","Edited","tag__","rep","blk","fam","fem"))
-
- 
   print("calculated mean indices")
+  # Saving out mean crown values + non masked pixel count to an rds file
   saveRDS(df_spectral_mean_count, paste0(dir_D,"\\",updated_metrics_folder,"\\", date_list[x], "_NIRshadowMask_MeanCrownSpectralIndices.rds"))
 
   # Calculating Median Index values per crown
   print("calculating median indices")
   df_spectral_median = exact_extract(rast_all, pols, fun = "median", append_cols = c("treeID","Edited","tag__","rep","blk","fam","fem"))
   df_spectral_median_count <- merge(df_spectral_median,df_count, by = c("treeID","Edited","tag__","rep","blk","fam","fem"))
-  
   print("calculated median indices")
+  # Saving out median crown values + non masked pixel count to an rds file
   saveRDS(df_spectral_median_count, paste0(dir_D,"\\",updated_metrics_folder,"\\", date_list[x], "_NIRshadowMask_MedianCrownSpectralIndices.rds"))
 
 }
 
-
-## Now we have .rds files for mean and medium values per crown, however each file is more one data aquisition
-# below adds multiple data aquisitions into one large .rds file
+# Now we have .rds files for mean and medium values per crown, however each file is only one data acquisition
+# below adds multiple data acquisitions into one large .rds file
 
 for (i in 1:length(date_list)){
   print(date_list[i])
@@ -178,7 +176,7 @@ for (i in 1:length(date_list)){
   #read in .rds file with index values per crown
   file <- readRDS(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_list[i],"\\",updated_metrics_folder,"\\", date_list[i], "_NIRshadowMask_MeanCrownSpectralIndices.rds"))%>%
     as.data.frame()%>%
-    mutate(Date = ymd(date_list[i]))#Making a column named Date that is a lubridate date object in the format of year-month-day
+    mutate(Date = ymd(date_list[i])) # Making a column named Date that is a lubridate date object in the format of YYYY-mm-dd
   
   if(i ==1){
     df_to_join <- as.data.frame(file)
