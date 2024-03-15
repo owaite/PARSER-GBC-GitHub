@@ -556,7 +556,7 @@ xmp_panels$img_name #checking img_name is just the root name of the img, ie IMG_
 
 unique(xmp_panels$Date) #checking all Dates are present
 
-# The get_panel_irr function calculates the mean reflectance value of each panel and the coeficient of variation of the irradiance
+# The get_panel_irr function calculates the mean reflectance value of each panel and the coeficient of variation of the panel reflectance
 get_panel_irr = function(x) {
   SourceFile = x$SourceFile
   mask_path = x$mask_path
@@ -649,8 +649,7 @@ get_panel_irr = function(x) {
 
 xmp_vals = xmp_panels %>% 
   ungroup() %>% 
-  nest(data = c(SourceFile_G, 
-                #SourceFile, ##### usually this is uncommented, just needed _G for one where im changing the drive
+  nest(data = c(SourceFile, 
                 mask_path, 
                 BlackLevel, 
                 RadiometricCalibration,
@@ -667,42 +666,41 @@ saveRDS(xmp_vals, paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_to_cho
 
 ################################################################################
 
-# the following values need to be set for each individual calibration panel used
-# thic could be coded to be done automatically 
+# The following values need to be set for each individual calibration panel used
+## This could be coded to be done automatically ##
 xmp_vals_choose = read_rds(paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_to_choose_panels.rds"))
-unique(xmp_vals_choose$Date)
+unique(xmp_vals_choose$Date) #check all dates are present
 
 xmp_vals_choose = read_rds(paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_to_choose_panels.rds")) %>% #SET PATH
   ## added below section to filter for cameras that have all 10 bands ie all 10 images have a panel mask
-  #filter(Date == "2023-04-05") %>%
   mutate(img_root = sub("_(\\d+)$", "", img_name))%>%
   group_by(Date, img_root)%>%
-  #filter(Date== "2022-10-05")%>%
-  filter(n_distinct(BandName) == 10,
-         !img_root %in% c("IMG_0035", "IMG_1093")) %>%
+  filter(n_distinct(BandName) == 10
+         # !img_root %in% c()# use to remove calibration panels that give poor results in metashape, so this step can be re run to find the next best panel
+         ) %>%
   ungroup()%>%
-  # UBC PANEL
-  mutate(panel_val = case_when(BandName == "Blue-444" ~ 0.487607,
-                               BandName == "Blue" ~ 0.488051,
-                               BandName == "Green-531" ~ 0.489004,
-                               BandName == "Green" ~ 0.489448,
-                               BandName == "Red-650" ~ 0.489518,
-                               BandName == "Red" ~ 0.489372,
-                               BandName == "Red edge-705" ~ 0.488794,
-                               BandName == "Red edge" ~ 0.48845,
-                               BandName == "Red edge-740" ~ 0.488047,
-                               BandName == "NIR"~ 0.486897)) %>%
-  ## JAKES PANEL
-  # mutate(panel_val = case_when( BandName == "Blue-444" ~ 0.471234,
-  #                               BandName == "Blue" ~ 0.471417,
-  #                               BandName == "Green-531" ~ 0.472238,
-  #                               BandName == "Green" ~ 0.472404,
-  #                               BandName == "Red-650" ~ 0.472016,
-  #                               BandName == "Red" ~ 0.471893,
-  #                               BandName == "Red edge-705" ~ 0.471425,
-  #                               BandName == "Red edge" ~ 0.471099,
-  #                               BandName == "Red edge-740" ~ 0.470721,
-  #                               BandName == "NIR"~ 0.469514,)) %>%
+  # # UBC PANEL
+  # mutate(panel_val = case_when(BandName == "Blue-444" ~ 0.487607,
+  #                              BandName == "Blue" ~ 0.488051,
+  #                              BandName == "Green-531" ~ 0.489004,
+  #                              BandName == "Green" ~ 0.489448,
+  #                              BandName == "Red-650" ~ 0.489518,
+  #                              BandName == "Red" ~ 0.489372,
+  #                              BandName == "Red edge-705" ~ 0.488794,
+  #                              BandName == "Red edge" ~ 0.48845,
+  #                              BandName == "Red edge-740" ~ 0.488047,
+  #                              BandName == "NIR"~ 0.486897)) %>%
+  # CFS PANEL
+  mutate(panel_val = case_when( BandName == "Blue-444" ~ 0.471234,
+                                BandName == "Blue" ~ 0.471417,
+                                BandName == "Green-531" ~ 0.472238,
+                                BandName == "Green" ~ 0.472404,
+                                BandName == "Red-650" ~ 0.472016,
+                                BandName == "Red" ~ 0.471893,
+                                BandName == "Red edge-705" ~ 0.471425,
+                                BandName == "Red edge" ~ 0.471099,
+                                BandName == "Red edge-740" ~ 0.470721,
+                                BandName == "NIR"~ 0.469514,)) %>%
   
   mutate(panel_irradiance = (irr_mean * pi) /
            ((HorizontalIrradiance_new) * .01)) %>% # percent of DLS-measured irradiance reflected by panel
@@ -722,7 +720,7 @@ xmp_vals_choose = read_rds(paste0(dir, "CSV\\Corrected_values\\", date_range,"_x
 
 unique(xmp_vals_choose$Date)
 
-#direct irradiance of panels verse time
+# Plotting the direct irradiance of panels verse time
 (xmp_vals_choose %>% 
     #filter(BandName %in% c("Blue", "NIR")) %>% 
     #mutate(Mod = if_else(grepl("_save", FileName), "Original", "Modified")) %>% 
@@ -753,7 +751,7 @@ unique(xmp_vals_choose$Date)
                                   "NIR" = "thistle4")) +
     facet_wrap(. ~ Date, scales = "free"))
 
-#direct irradiance of panels verse time
+# Plotting the difference in panel value and panel irradiance and the mean CV of the panel reflectance
 (xmp_vals_choose %>% 
     filter(BandName %in% c("Blue")) %>% 
     ggplot(aes(x = irr_diff_max, y = irr_cv_mean, group = BandName, color = BandName)) +
@@ -780,40 +778,11 @@ unique(xmp_vals_choose$Date)
 #saveRDS(xmp_vals_choose, paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_chosen_panels.rds"))  # SET PATH
 
 
-# these are the panels to use
+# These are the panels to use
 xmp_vals_choose %>%
   filter(BandName == "Blue" & choose_flag == 1) %>% 
-  distinct(img_name, Date, choose_flag) #%>% 
- # write_csv(paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_chosen_panels.rds"))
+  distinct(img_name, Date, choose_flag) %>%
+  write_csv(paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_chosen_panels.rds"))
 
 chosen_p <- read_csv(paste0(dir, "CSV\\Corrected_values\\", date_range,"_xmp_chosen_panels.rds"))
-chosen_p
-#### added by olivia:
-# issues in metashape where some photos are missing so cant make ortho
-# listing all images in MS and Ms _save and seeing which are missing
-# disabeliing the missing images in metashape
-x = 1
-ms_list_red <- list.files(paste0("I:\\PARSER_Ext\\Fdc_PR_Canoe\\Flights\\", date_list[x],"\\1_Data\\Micasense_Cleaned\\MS_RED\\"), 
-                                           pattern = c(".tif$"), recursive = TRUE, 
-                                           full.names = FALSE)
-
-ms_list_blue <- list.files(paste0("I:\\PARSER_Ext\\Fdc_PR_Canoe\\Flights\\", date_list[x],"\\1_Data\\Micasense_Cleaned\\MS_BLUE\\"), 
-                          pattern = c(".tif$"), recursive = TRUE, 
-                          full.names = FALSE)
-ms_list <- rbind(ms_list_red, ms_list_blue)
-
-ms_list_red_save <- list.files(paste0("I:\\PARSER_Ext\\Fdc_PR_Canoe\\Flights\\", date_list[x],"\\1_Data\\Micasense_Cleaned_org_save\\MS_RED\\"), 
-                          pattern = c(".tif$"), recursive = TRUE, 
-                          full.names = FALSE)
-
-ms_list_blue_save <- list.files(paste0("I:\\PARSER_Ext\\Fdc_PR_Canoe\\Flights\\", date_list[x],"\\1_Data\\Micasense_Cleaned_org_save\\MS_BLUE\\"), 
-                           pattern = c(".tif$"), recursive = TRUE, 
-                           full.names = FALSE)
-ms_list_save <- rbind(ms_list_red_save, ms_list_blue_save)
-
-
-not_in_list1 <- setdiff(ms_list_save, ms_list)
-not_in_list2 <- setdiff(ms_list, ms_list_save)
-
-strings_not_in_both <- union(not_in_list1, not_in_list2)
-strings_not_in_both
+chosen_p # Best calibration panels 
