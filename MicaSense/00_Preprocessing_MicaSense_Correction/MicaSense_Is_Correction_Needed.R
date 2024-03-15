@@ -1,39 +1,32 @@
+# 
+# # Identifying if correction if needed for MicaSense Imagery
+# library(terra)
+# library(exifr)
+# library(tidyverse)
+# library(ggplot2)
+# library(raster)
+# library(lubridate)
+# library(exifr)
+# library(pracma)
+# library(RcppCNPy)
+# library(zoo)
+# library(forecast)
+# library(fable)
+# library(ggpmisc)
+# library(broom)
+# library(tidyfit)
+# library(rsample)
+# 
+# #libraries to parallize:
+# # Load required packages
+# library(foreach)
+# library(snow)
+# library(parallel)
+# library(iterators)
+# library(magrittr)  # For the pipe operator %>%
+# 
 
-# Pre-processing of Micasense images before calibration and orthophoto
-# generation in Metashape
-
-# (1) read XMP data into R format and save as RDS
-# (2) compute sun-sensor angle for all photos 
-# (3) estimate scattered:direct ratio for each flight
-# (4) compute horizontal (corrected) irradiance for the DLS for all photos
-# (5) select the best calibration panel to use for each flight
-
-
-library(terra)
-library(exifr)
-library(tidyverse)
-library(ggplot2)
-library(raster)
-library(lubridate)
-library(exifr)
-library(pracma)
-library(RcppCNPy)
-library(zoo)
-library(forecast)
-library(fable)
-library(ggpmisc)
-library(broom)
-library(tidyfit)
-library(rsample)
-
-#libraries to parallize:
-# Load required packages
-library(foreach)
-library(snow)
-library(parallel)
-library(iterators)
-library(magrittr)  # For the pipe operator %>%
-
+library(future)
 
 ################################################################################
 
@@ -46,44 +39,46 @@ library(magrittr)  # For the pipe operator %>%
 # Assumes that masks have been exported from agisoft metashape for all panels to '\\MASKS'
 
 # Folder pattern: dir \\DAP\\MS\\ flight_date_save \\ PANELS \\ panel_img.tif
-dir <- "G:\\PARSER_Ext\\Fdc_PR_Canoe\\Flights\\"
-dir_masks <- "D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\"
-
+dir <- "Q:\\SNC\\Data\\Fdc_East_GCA\\Flights\\"
+dir_masks <-  "Q:\\SNC\\Data\\Fdc_East_GCA\\Flights\\"
+MS_folder_name <- "Micasense"
 #Flight aquisitions that are also the names of folders containing the data per flight
 date_list <-  c(
-  "2022_04_23", 
-  "2022_05_08", 
-  "2022_05_27", 
-  "2022_06_08", 
-  "2022_06_23"
+  "2023_03_13"
 )
 date_list               
 
-date_range <- "2022_04_23-2022_06_23" # This is used in the below code as a suffix to name the rds of corrected exif data
+date_range <- "2023_03_13" #"2022_04_23-2022_06_23" # This is used in the below code as a suffix to name the rds of corrected exif data
 
-ext_save <- "_save" #In the ...\\Flights\\Date\\1_Data\\ directory there should be two folders: (1) MicaSense_Cleaned (just original MS data)
+ext_save <- "_save" 
+ext_save <- "" 
+#In the ...\\Flights\\Date\\1_Data\\ directory there should be two folders: (1) MicaSense_Cleaned (just original MS data)
 # (2) MicaSense_Cleaned_save (a copy of MicaSense_Cleaned)
 # Images in MicaSense_Cleaned will have their metadata overwritten with corrected values and images in MicaSense_Cleaned_save will not be edited and remain as original backups
 # change the string "_save" in ext_save to whatever is the suffix of your naming convention to match the above format (ie could do ext_save <- "_Origianl, for MicaSense_Cleaned_Original)
+
+MS_folder_name <- paste0("Micasense", ext_save)
 
 ################################################################################
 # (1) read XMP data into R format and save as RDS
 ################################################################################
 
+# future:::ClusterRegistry("stop")
+plan(multisession, workers = 2L) # Initiating 2 workers to speed up processing
 
 for (x in seq_along(date_list)){
   
   for (j in 1:10){ # bands 1 through 10 
     
-    pics = list.files(paste0(dir, date_list[x],"\\1_Data\\Micasense_Cleaned",ext_save), #path the Micasense_Cleaned_save that is the original copied that will NOT be written over
+    pics = list.files(paste0(dir, date_list[x],"\\1_Data\\MS_folder_name"), #path the Micasense_Cleaned_save that is the original copied that will NOT be written over
                       pattern = c(paste0("IMG_...._", j, ".tif"), paste0("IMG_...._", j, "_", ".tif")), recursive = TRUE, 
                       full.names = TRUE) # list of directories to all images
     
-    # Getting names of masks
-    mask_images <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_list[x],"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks that are exported from metashape 
-    mask_img_names <- gsub("_mask\\.png$", "", mask_images) # removes the suffix "_mask.png" from each element in the 'mask_images' list, ie : IMG_0027_1_mask.png becomes : IMG_0027_1 
-    # IMG_0027_1 will match an image name in the MicaSense_Cleaned_save folder, therefore the list of mask_img_names will be used to identify panel images
-    
+    # # Getting names of masks
+    # mask_images <- list.files(paste0("D:\\Sync\\Sync\\Fdc_PR_Canoe\\Flights\\",date_list[x],"\\2_Inputs\\metashape\\MASKS\\")) #path to folder with masks that are exported from metashape 
+    # mask_img_names <- gsub("_mask\\.png$", "", mask_images) # removes the suffix "_mask.png" from each element in the 'mask_images' list, ie : IMG_0027_1_mask.png becomes : IMG_0027_1 
+    # # IMG_0027_1 will match an image name in the MicaSense_Cleaned_save folder, therefore the list of mask_img_names will be used to identify panel images
+    # 
     for (i in 1:length(pics)){ #for each image in Micasense_Cleaned_save, one at a time
       pic = pics[i]
       pic_root <- gsub(".*/(IMG_.*)(\\.tif)$", "\\1", pic)# The pattern captures the filename starting with "IMG_" and ending with ".tif".Ie: IMG_0027_1.tiff becomes IMG_0027_1
@@ -116,6 +111,34 @@ for (x in seq_along(date_list)){
     saveRDS(exif_df, paste0(dir,date_list[x], "\\1_Data\\CSV\\Corrected_values\\df_", date_list[x], "_", j, ".rds")) # save output for each band, set path
   } 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Ensuring that panels are correctly flagged is important for the rest of the code
 ###  Here we are checking that the panel_flag is correct:
