@@ -43,7 +43,6 @@ library(magrittr)  # For the pipe operator %>%
 ### throughout this code the "MicaSense_Cleaned" exif data will be edited and the "MicaSense_Cleaned_save" 
 ### will be an unedited backup
 
-# Assumes that panels are in a separate subdirectory called '\\PANELS'-------------------------33333333333333333333333333333333333333333333--------------------------------------------
 # Assumes that masks have been exported from agisoft metashape for all panels to '\\MASKS'
 
 # Folder pattern: dir \\DAP\\MS\\ flight_date_save \\ PANELS \\ panel_img.tif
@@ -62,9 +61,10 @@ date_list
 
 date_range <- "2022_04_23-2022_06_23" # This is used in the below code as a suffix to name the rds of corrected exif data
 
-ext_save <- "_save" #make either (1)"" for "Micasense_Cleaned" 
-                              #or (2) "_save" for "Micasense_Cleaned_save" --------3333333333333333333333333333333333333333333333333333333333------
-
+ext_save <- "_save" #In the ...\\Flights\\Date\\1_Data\\ directory there should be two folders: (1) MicaSense_Cleaned (just original MS data)
+                                                                                              # (2) MicaSense_Cleaned_save (a copy of MicaSense_Cleaned)
+# Images in MicaSense_Cleaned will have their metadata overwritten with corrected values and images in MicaSense_Cleaned_save will not be edited and remain as original backups
+# change the string "_save" in ext_save to whatever is the suffix of your naming convention to match the above format (ie could do ext_save <- "_Origianl, for MicaSense_Cleaned_Original)
 
 ################################################################################
 # (1) read XMP data into R format and save as RDS
