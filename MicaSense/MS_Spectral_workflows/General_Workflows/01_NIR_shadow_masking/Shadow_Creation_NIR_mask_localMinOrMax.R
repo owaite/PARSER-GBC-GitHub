@@ -133,8 +133,9 @@ for (x in seq_along(date_list)) {
       
       }else{ 
       zeros_local_min <- zeros_filtered[which.max(zeros_filtered$definition), ] #isolating the largest local min
-      x_zeros <- density_values$x[zeros_local_min$Index] #selecting NIR (aka x_mid) value that corresponds to the index value of the most defined local min 
-     
+      # x_zeros <- density_values$x[zeros_local_min$Index] #selecting NIR (aka x_mid) value that corresponds to the index value of the most defined local min 
+      threshold <- density_values$x[zeros_local_min$Index] #selecting NIR (aka x_mid) value that corresponds to the index value of the most defined local min 
+      
       # Catching cases of "inf" returns:
       if (threshold <= 0.7 & threshold > 0){#setting limits on the threshold to remove any thresholds from the tails of the distribution
         print(threshold)
@@ -174,7 +175,7 @@ for (x in seq_along(date_list)) {
   
   
   ggsave(hist, #saving out the plot
-         filename = paste0(dir, Nir_shadow_folder,"\\", date_list[x], "_NIR_shadow_hist_localMin_orMax.jpeg"),
+         filename = paste0(dir, Nir_shadow_folder_baseName,"\\", date_list[x], "_NIR_shadow_hist_localMin_orMax.jpeg"),
          device = jpeg,
          width = 8,
          height = 8)
@@ -189,7 +190,7 @@ for (x in seq_along(date_list)) {
   shadow_mask[shadow_mask <= threshold] = 1 #for NIR values < or = to the threshold value, make them 1
   
   # Writing out the shadow mask that has values of 1 for all pixels that will be masked out
-  terra::writeRaster(shadow_mask, paste0(dir, Nir_shadow_folder,"\\",  date_list[x], "_NIR_shadow_thresh",threshold ,"_",thresh_name, ".tif"),
+  terra::writeRaster(shadow_mask, paste0(dir, Nir_shadow_folder_baseName,"\\",  date_list[x], "_NIR_shadow_thresh",threshold ,"_",thresh_name, ".tif"),
                      overwrite = TRUE)
   
   # Grouping adjacent pixels with the same value (in this case representing shadowed areas) into distinct patches or clumps
@@ -211,7 +212,7 @@ for (x in seq_along(date_list)) {
   new_mask[new_mask == 0] = NA # make clumps that are zero, NA
   
   #writing out a 'cleaned' shadow mask
-  terra::writeRaster(new_mask, paste0(dir, Nir_shadow_folder,"\\",  date_list[x], "_NIR_shadow_thresh",threshold ,"_",thresh_name, "_mask2.tif"),
+  terra::writeRaster(new_mask, paste0(dir, Nir_shadow_folder_baseName,"\\",  date_list[x], "_NIR_shadow_thresh",threshold ,"_",thresh_name, "_mask2.tif"),
                      overwrite = TRUE)
   
 }
