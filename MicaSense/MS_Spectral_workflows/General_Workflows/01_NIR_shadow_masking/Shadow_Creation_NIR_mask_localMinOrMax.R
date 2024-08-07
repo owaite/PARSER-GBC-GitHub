@@ -64,7 +64,7 @@ find_local_min <- function(values) { #input "values" is a list of 1st derivative
     }
   }
   
-  return(data.frame(Neg_Value = neg_slope, Pos_Value = pos_slope, Index = index_of_closest, definition = definition, neg_def = neg_sum, pos_def = pos_sum))
+  return(data.frame(neg_value = neg_slope, pos_value = pos_slope, Index = index_of_closest, definition = definition, neg_def = neg_sum, pos_def = pos_sum))
 }
 
 ##############################################################################

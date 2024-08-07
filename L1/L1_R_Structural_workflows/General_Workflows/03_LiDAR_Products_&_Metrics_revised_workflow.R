@@ -191,20 +191,20 @@ for (i in 1:length(date_list)){
   }
   
   ##############################################################################
-  #(3.2) Create 10cm DTMs (Ditgital Terrain Model) - ground identified in DJI terra - thinned to 1cm below
-  # for future - don't think the point cloud for the ground, keep all possible points
+  #(3.2) Create 10cm DTMs (Ditgital Terrain Model) - ground identified in DJI terra 
+  # Option to thin to 1cm below however if possible keep all possible points
   ##############################################################################
-  GROUND = readLAScatalog(folder = paste0(dir, "\\03_tile\\"), filter = "drop_withheld")
-  opt_filter(GROUND) <- "-drop_withheld"   # set filtering options for the LAScatalog object to drop withheld points
-  opt_filter(GROUND) = "-thin_with_voxel 0.01" # thin points with a voxel size of 1cm
-  opt_chunk_buffer(GROUND) = .5   # set the buffer size for chunks in the LAScatalog object to 0.5m
-  opt_laz_compression(GROUND) = TRUE   # enable LAZ compression for the LAScatalog object
-  opt_output_files(GROUND) = ""   # set output file options for the LAScatalog object to empty
-  opt_progress(GROUND) = TRUE # enable progress tracking for processing
+  TILES = readLAScatalog(folder = paste0(dir, "\\03_tile\\"), filter = "drop_withheld")
+  opt_filter(TILES) <- "-drop_withheld"   # set filtering options for the LAScatalog object to drop withheld points
+  # opt_filter(TILES) = "-thin_with_voxel 0.01" # thin points with a voxel size of 1cm
+  opt_chunk_buffer(TILES) = .5   # set the buffer size for chunks in the LAScatalog object to 0.5m
+  opt_laz_compression(TILES) = TRUE   # enable LAZ compression for the LAScatalog object
+  opt_output_files(TILES) = ""   # set output file options for the LAScatalog object to empty
+  opt_progress(TILES) = TRUE # enable progress tracking for processing
 
 
-  # Create a DTM from the ground points
-  DTM = grid_terrain(GROUND, res = 0.1, tin(), full_raster = FALSE) %>% 
+  # Create a DTM
+  DTM = grid_terrain(TILES, res = 0.1, tin(), full_raster = FALSE) %>% 
     # applying a focal operation to the DTM raster.
     # computing the mean value within a moving window defined by a matrix.
     focal(w = matrix(1, 25, 25),  # define a 25x25 window with all values as 1
@@ -239,10 +239,9 @@ for (i in 1:length(date_list)){
   opt_output_files(NORM) = paste0(dir, "\\06_NORM_clean\\{*}") #save the filtered normalized filed to the "06..." folder
   opt_progress(NORM) = TRUE #show the progress
   
-  # now write over the NORM files but filter points less than -.5
   NORM_clean = catalog_retile(NORM) # applying the filter (of dropping points below -0.25) to all files in the catalog
   
-  #### Making CHMS
+  # Making CHMS
   CHM_max = grid_metrics(NORM_clean, #NORM_clean is the catalog the CHM is being made from
                          res = 0.04, #4cm resolution
                          func = ~max(Z)) #using max Z values
@@ -267,10 +266,10 @@ for (i in 1:length(date_list)){
   
   
   
-  # new chunks have only segmented portions of tree crowns
+  # New tiles have only segmented portions of tree crowns
   SEGMENTED = catalog_apply(NORM, polys_to_las)#apply the poly_to_las function to the NORM catalog
   
-  print("segmented")#print out "segmented" so you know where the code is at
+  print("segmented")#print out "segmented" to show that the code has completed this step, gives an idea of progress
   
   ##############################################################################
   #(3.5) Merge all segmented tiles (will only have points left that are attributed to top 25% of each tree, need to merge because some trees have been split in the tiling process
